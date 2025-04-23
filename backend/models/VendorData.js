@@ -30,7 +30,7 @@ const vendorSchema = new mongoose.Schema(
       default: "pending",
     },
     scheduledTime: {
-      type: Date, // 🆕 new field
+      type: String, 
       default: null,
     },
   },

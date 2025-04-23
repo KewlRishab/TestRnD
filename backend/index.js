@@ -1,6 +1,5 @@
 const express = require("express");
 const nodemailer = require("nodemailer");
-// const path = require("path");
 const app = express();
 const PORT = 8000;
 const cron = require("node-cron");
@@ -16,8 +15,8 @@ app.use(
   })
 );
 
-connectDB().then(() => {
-  rescheduleEmailsOnStartup(); // Restore scheduled jobs + send missed ones
+connectDB().then(async () => {
+  await rescheduleEmailsOnStartup(); // Await this to ensure it's done before server is considered ready
 });
 
 // Transporter for Email
@@ -52,12 +51,34 @@ app.post("/api/schedule-email", async (req, res) => {
     return res.status(400).json({ message: "scheduleTime is required" });
   }
 
-  const scheduleDate = new Date(scheduleTime);
-  if (isNaN(scheduleDate)) {
-    return res.status(400).json({ message: "Invalid date format" });
-  }
+  let cronTime;
+  let scheduleDate;
 
-  const cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${scheduleDate.getMonth() + 1} *`;
+  if (scheduleTime.indexOf("T") === -1) {
+    // Time-only format like "18:10"
+    const [hourStr, minuteStr] = scheduleTime.split(":");
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
+
+    if (isNaN(hour) || isNaN(minute)) {
+      return res.status(400).json({ message: "Invalid time format" });
+    }
+
+    scheduleDate = new Date(); // Just use current date for storing something
+    scheduleDate.setHours(hour, minute, 0, 0); // Set the desired time
+
+    cronTime = `${minute} ${hour} * * *`; // Daily at this time
+  } else {
+    // Full datetime format
+    scheduleDate = new Date(scheduleTime);
+    if (isNaN(scheduleDate)) {
+      return res.status(400).json({ message: "Invalid datetime format" });
+    }
+
+    cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
+      scheduleDate.getMonth() + 1
+    } *`;
+  }
 
   try {
     await VendorData.updateMany(
@@ -81,9 +102,7 @@ app.post("/api/schedule-email", async (req, res) => {
             from: "remorsivemate@gmail.com",
             to: vendor_email,
             subject: `📄 Invoice from ${vendor_name}`,
-            text: `Dear ${vendor_name},\n
-            \nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n
-            \nBest regards, \nXYZ Company`,
+            text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
           };
 
           try {
@@ -95,7 +114,6 @@ app.post("/api/schedule-email", async (req, res) => {
               { _id: vendor._id },
               { $set: { scheduled_req: "sent" } }
             );
-
           } catch (err) {
             console.error(`Failed to send email to ${vendor_email}:`, err);
             await VendorData.updateOne(
@@ -122,7 +140,7 @@ async function rescheduleEmailsOnStartup() {
   try {
     const now = new Date();
 
-    //  missed emails immediately if scheduled time already passed and status is still "scheduled"
+    // Missed emails - immediately send if scheduled time already passed
     const missedVendors = await VendorData.find({
       scheduled_req: "scheduled",
       scheduledTime: { $lte: now },
@@ -136,9 +154,7 @@ async function rescheduleEmailsOnStartup() {
           from: "remorsivemate@gmail.com",
           to: vendor_email,
           subject: `📄 Invoice from ${vendor_name}`,
-          text: `Dear ${vendor_name},\n
-          \nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n
-          \nBest regards, \nXYZ Company`,
+          text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
         };
 
         await transporter.sendMail(mailOptions);
@@ -148,9 +164,11 @@ async function rescheduleEmailsOnStartup() {
           { _id: vendor._id },
           { $set: { scheduled_req: "sent" } }
         );
-
       } catch (err) {
-        console.error(`(Missed) Failed to send email to ${vendor.vendor_email}:`, err);
+        console.error(
+          `(Missed) Failed to send email to ${vendor.vendor_email}:`,
+          err
+        );
         await VendorData.updateOne(
           { _id: vendor._id },
           { $set: { scheduled_req: "pending" } }
@@ -158,7 +176,7 @@ async function rescheduleEmailsOnStartup() {
       }
     }
 
-    //Reschedule future emails
+    // Reschedule future emails
     const futureVendors = await VendorData.find({
       scheduled_req: "scheduled",
       scheduledTime: { $gt: now },
@@ -166,7 +184,18 @@ async function rescheduleEmailsOnStartup() {
 
     futureVendors.forEach((vendor) => {
       const scheduleDate = new Date(vendor.scheduledTime);
-      const cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${scheduleDate.getMonth() + 1} *`;
+      let cronTime;
+
+      // Check if it's a time-only schedule (daily)
+      if (vendor.scheduledTime.indexOf("T") === -1) {
+        // Time-only schedule: Run every day at the specified time
+        cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} * * *`;
+      } else {
+        // Date-time schedule: Specific date
+        cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
+          scheduleDate.getMonth() + 1
+        } *`;
+      }
 
       cron.schedule(cronTime, async () => {
         try {
@@ -176,22 +205,22 @@ async function rescheduleEmailsOnStartup() {
             from: "remorsivemate@gmail.com",
             to: vendor_email,
             subject: `📄 Invoice from ${vendor_name}`,
-            text: `Dear ${vendor_name},\n
-            \nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n
-            \nBest regards, \nXYZ Company`,
+            text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
           };
 
           await transporter.sendMail(mailOptions);
           console.log(`(Restored) Email sent to ${vendor_email}`);
 
-          //Mark as sent
+          // Mark as sent
           await VendorData.updateOne(
             { _id: vendor._id },
             { $set: { scheduled_req: "sent" } }
           );
-
         } catch (err) {
-          console.error(`(Restored) Failed to send email to ${vendor.vendor_email}:`, err);
+          console.error(
+            `(Restored) Failed to send email to ${vendor.vendor_email}:`,
+            err
+          );
           await VendorData.updateOne(
             { _id: vendor._id },
             { $set: { scheduled_req: "pending" } }

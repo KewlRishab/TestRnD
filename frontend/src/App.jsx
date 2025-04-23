@@ -4,32 +4,30 @@ import { useState } from "react";
 import axios from "axios";
 
 function App() {
-  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleDateTime, setScheduleDateTime] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(false);
-
-
-  const handleTimeChange=(time)=>{
-    console.log(time)
-    setScheduleTime(time)
+  const [scheduledTime,setScheduledTime]=useState("");
+  
+  const handleValueChange=(time,selLabel)=>{
+    console.log(selLabel ,time)
+    selLabel==="onlyTime"?setScheduledTime(time):setScheduleDateTime(time);
   }
 
   const handleSchedule = async () => {
-    if (!scheduleTime) {
-      alert("Please select a date and time first!");
+    if (!scheduledTime && !scheduleDateTime ) {
+      alert("Please select a specific duration from the Date-Time or Time box before scheduling!");
       return;
     }
 
     try {
       const response = await axios.post("http://localhost:8000/api/schedule-email", {
-        email: "remorsivemate@gmail.com", 
-        scheduleTime: scheduleTime,
+        scheduleTime: scheduleDateTime || scheduledTime,
       });
-
-      alert("✅ Email scheduled successfully!");
+      alert("Email scheduled successfully! ✅");
       console.log(response.data);
       setRefreshTrigger(prev => !prev); 
     } catch (error) {
-      console.error("❌ Error scheduling email:", error);
+      console.error("Error scheduling email:", error);
       alert("Failed to schedule email.");
     }
   };
@@ -40,13 +38,13 @@ function App() {
       <div className="buttonHeading">
         Please select the date and time below to schedule An Email!
       </div>
-
+      <input type="time" id="onlyTime" value={scheduledTime} onChange={ (e) => handleValueChange(e.target.value , "onlyTime") }/>
       <input
         type="datetime-local"
-        id="datetime"
-        name="scheduleTime"
-        value={scheduleTime}
-        onChange={(e) =>handleTimeChange(e.target.value)}
+        id="dateTime"
+        name="scheduleTime" 
+        value={scheduleDateTime}
+        onChange={(e) =>handleValueChange(e.target.value ,"dateTime")}
       />
 
       <button className="actionButton" onClick={handleSchedule}>
