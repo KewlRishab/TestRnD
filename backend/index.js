@@ -8,6 +8,7 @@ const connectDB = require("./db");
 const VendorData = require("./models/VendorData");
 const CustData = require("./models/CustomerData");
 const CustomerData = require("./models/CustomerData");
+const CompData = require("./models/CompanyData");
 let cronJobs = {};
 
 app.use(express.json());
@@ -41,18 +42,30 @@ app.get("/api/getVendorData", async (req, res) => {
     const vendorData = await VendorData.find();
     res.status(200).json(vendorData);
   } catch (err) {
-    console.error("Error fetching vendor data:", err);
-    res.status(500).json({ message: "Error fetching vendor data" });
+    console.error("Error getting vendor data:", err);
+    res.status(500).json({ message: "Error getting vendor data" });
   }
 });
 
+//API to get all customer data
 app.get("/api/getCustData", async (req, res) => {
   try {
     const custData = await CustData.find();
     res.status(200).json(custData);
   } catch (err) {
-    console.error("Error fetching customer data:", err);
-    res.status(500).json({ message: "Error fetching customer data" });
+    console.error("Error getting customer data:", err);
+    res.status(500).json({ message: "Error getting customer data" });
+  }
+});
+
+//API to get all Company Data
+app.get("/api/getCompData", async (req, res) => {
+  try {
+    const compData = await CompData.find();
+    res.status(200).json(compData);
+  } catch (err) {
+    console.error("Error getting Company data:", err);
+    res.status(500).json({ message: "Error getting Company data" });
   }
 });
 
@@ -96,9 +109,10 @@ app.post("/api/schedule-email", async (req, res) => {
   }
 
   try {
-    // Store the new time in the DB for both vendors and customers
+    // Store the new time in the DB for all the tables
     await VendorData.updateMany({}, { $set: { scheduledTime: timeToStore } });
     await CustData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    await CompData.updateMany({}, { $set: { scheduledTime: timeToStore } });
 
     // Stop the previous cron job if it exists
     if (cronJobs[currDate]) {
@@ -180,6 +194,41 @@ app.post("/api/schedule-email", async (req, res) => {
             );
           }
         }
+
+        // Company Email Logic
+        const compData = await CompData.find();
+
+        for (let comp of compData) {
+          const { comp_email, comp_invoice, comp_name } = comp;
+          if (comp.scheduled_req !== "pending") {
+            console.log(
+              `Skipping ${comp.comp_email} — Already processed & not pending`
+            );
+            continue;
+          }
+          const mailOptions = {
+            from: "remorsivemate@gmail.com",
+            to: comp_email,
+            subject: `📄 Invoice from ${comp_name}`,
+            text: `Dear beloved Company Person ${comp_name},\n\nPlease find your invoice PDF file at the following link: ${comp_invoice}\n\nBest regards,\nXYZ Company`,
+          };
+
+          try {
+            await transporter.sendMail(mailOptions);
+            console.log(`Email sent to ${comp_email}`);
+
+            await CompData.updateOne(
+              { _id: comp._id },
+              { $set: { scheduled_req: "sent" } }
+            );
+          } catch (err) {
+            console.error(`Failed to send email to ${comp_email}:`, err);
+            await CompData.updateOne(
+              { _id: comp._id },
+              { $set: { scheduled_req: "pending" } } 
+            );
+          } 
+        }
       } catch (err) {
         console.error("Error sending invoices:", err);
       }
@@ -198,6 +247,7 @@ async function rescheduleEmailsOnStartup() {
   try {
     await rescheduleForCollection(VendorData, "Vendor");
     await rescheduleForCollection(CustomerData, "Customer");
+    await rescheduleForCollection(CompData, "Company");
   } catch (err) {
     console.error("Error during full rescheduling:", err);
   }
@@ -220,6 +270,9 @@ const rescheduleForCollection = async (
       cust_name,
       cust_email,
       cust_invoice,
+      comp_name,
+      comp_email,
+      comp_invoice,
     } = entry;
 
     if (!scheduledTime || scheduledTime.trim() === "") {
@@ -229,9 +282,9 @@ const rescheduleForCollection = async (
       continue;
     }
 
-    const name = vendor_name || cust_name;
-    const email = vendor_email || cust_email;
-    const invoice = vendor_invoice || cust_invoice;
+    const name = vendor_name || cust_name || comp_name;
+    const email = vendor_email || cust_email || comp_email;
+    const invoice = vendor_invoice || cust_invoice || comp_invoice;
 
     const isTimeOnly =
       typeof scheduledTime === "string" && /^\d{2}:\d{2}$/.test(scheduledTime);
@@ -250,7 +303,11 @@ const rescheduleForCollection = async (
           to: email,
           subject: `📄 Invoice from ${name}`,
           text: `Dear ${
-            roleLabel === "Customer" ? "Customer" : "Vendor"
+            roleLabel === "Customer"
+              ? "Customer"
+              : roleLabel === "Company"
+              ? "Company"
+              : "Vendor"
           }  ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
         };
 
@@ -273,7 +330,11 @@ const rescheduleForCollection = async (
                 to: email,
                 subject: `📄 Invoice from ${name}`,
                 text: `Dear ${
-                  roleLabel === "Customer" ? "Customer" : "Vendor"
+                  roleLabel === "Customer"
+                    ? "Customer"
+                    : roleLabel === "Company"
+                    ? "Company"
+                    : "Vendor"
                 } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
               };
 
@@ -307,7 +368,11 @@ const rescheduleForCollection = async (
             to: email,
             subject: `📄 Invoice from ${name}`,
             text: `Dear ${
-              roleLabel === "Customer" ? "Customer" : "Vendor"
+              roleLabel === "Customer"
+                ? "Customer"
+                : roleLabel === "Company"
+                ? "Company"
+                : "Vendor"
             }  ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
           };
 
@@ -340,7 +405,11 @@ const rescheduleForCollection = async (
           to: email,
           subject: `📄 Invoice from ${name}`,
           text: `Dear ${
-            roleLabel === "Customer" ? "Customer" : "Vendor"
+            roleLabel === "Customer"
+              ? "Customer"
+              : roleLabel === "Company"
+              ? "Company"
+              : "Vendor"
           } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
         };
 
@@ -372,7 +441,11 @@ const rescheduleForCollection = async (
             to: email,
             subject: `📄 Invoice from ${name}`,
             text: `Dear beloved ${
-              roleLabel === "Customer" ? "Customer" : "Vendor"
+              roleLabel === "Customer"
+                ? "Customer"
+                : roleLabel === "Company"
+                ? "Company"
+                : "Vendor"
             } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
           };
 

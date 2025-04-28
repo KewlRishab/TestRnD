@@ -3,6 +3,7 @@ import VendorTable from "./components/VendorTable";
 import { useState } from "react";
 import axios from "axios";
 import CustTable from "./components/CustTable";
+import CompTable from "./components/CompTable";
 
 function App() {
   const [scheduleDateTime, setScheduleDateTime] = useState("");
@@ -45,6 +46,7 @@ function App() {
       <div className="tableCont">
         <VendorTable refreshTrigger={refreshTrigger} />
         <CustTable refreshTrigger={refreshTrigger} />
+        <CompTable refreshTrigger={refreshTrigger}/>
       </div>
       <div className="buttonHeading">
         Please select the date and time below to schedule An Email!
