@@ -1,14 +1,19 @@
 .container {
     // height: 38%;
-    width: 30%;
+    // width: 30%;
     // border-radius: 20px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    // justify-content: center;
     align-items: center;
     // background: linear-gradient(to right, rgb(255, 252, 240), rgb(232, 248, 255));
     // box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    .tableCont{
+        padding:0px 20px;
+        display: flex;
+        flex-direction: column;
 
+    }
     .buttonHeading {
         font-size: 18px;
         font-family: 'Courier New', Courier, monospace;

@@ -6,6 +6,9 @@ const cron = require("node-cron");
 const cors = require("cors");
 const connectDB = require("./db");
 const VendorData = require("./models/VendorData");
+const CustData = require("./models/CustomerData");
+const CustomerData = require("./models/CustomerData");
+let cronJobs = {};
 
 app.use(express.json());
 
@@ -43,6 +46,16 @@ app.get("/api/getVendorData", async (req, res) => {
   }
 });
 
+app.get("/api/getCustData", async (req, res) => {
+  try {
+    const custData = await CustData.find();
+    res.status(200).json(custData);
+  } catch (err) {
+    console.error("Error fetching customer data:", err);
+    res.status(500).json({ message: "Error fetching customer data" });
+  }
+});
+
 // API to schedule and send email to all vendors at a specific time
 app.post("/api/schedule-email", async (req, res) => {
   const { scheduleTime } = req.body;
@@ -52,8 +65,8 @@ app.post("/api/schedule-email", async (req, res) => {
   }
 
   let cronTime;
-  let scheduleDate;
-
+  let timeToStore;
+  let currDate;
   if (scheduleTime.indexOf("T") === -1) {
     // Time-only format like "18:10"
     const [hourStr, minuteStr] = scheduleTime.split(":");
@@ -64,13 +77,13 @@ app.post("/api/schedule-email", async (req, res) => {
       return res.status(400).json({ message: "Invalid time format" });
     }
 
-    scheduleDate = new Date(); // Just use current date for storing something
-    scheduleDate.setHours(hour, minute, 0, 0); // Set the desired time
-
     cronTime = `${minute} ${hour} * * *`; // Daily at this time
+    timeToStore = scheduleTime; // store "18:10" directly
+    const now = new Date();
+    currDate = now.toISOString().split("T")[0]; // Get current date
   } else {
-    // Full datetime format
-    scheduleDate = new Date(scheduleTime);
+    // Full datetime format like "2025-04-24T10:36"
+    const scheduleDate = new Date(scheduleTime);
     if (isNaN(scheduleDate)) {
       return res.status(400).json({ message: "Invalid datetime format" });
     }
@@ -78,38 +91,47 @@ app.post("/api/schedule-email", async (req, res) => {
     cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
       scheduleDate.getMonth() + 1
     } *`;
+    timeToStore = scheduleDate; // store actual Date object
+    currDate = scheduleDate.toISOString().split("T")[0]; // Store date in "YYYY-MM-DD" format
   }
 
   try {
-    await VendorData.updateMany(
-      {},
-      {
-        $set: {
-          scheduled_req: "scheduled",
-          scheduledTime: scheduleDate,
-        },
-      }
-    );
+    // Store the new time in the DB for both vendors and customers
+    await VendorData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    await CustData.updateMany({}, { $set: { scheduledTime: timeToStore } });
 
-    cron.schedule(cronTime, async () => {
+    // Stop the previous cron job if it exists
+    if (cronJobs[currDate]) {
+      console.log(`Stopping existing job for ${currDate}`);
+      cronJobs[currDate].stop(); // Stop the existing cron job
+    }
+
+    // Schedule a new job
+    cronJobs[currDate] = cron.schedule(cronTime, async () => {
       try {
+        // VENDOR EMAIL LOGIC
         const vendorData = await VendorData.find();
 
         for (let vendor of vendorData) {
-          const { vendor_name, vendor_email, vendor_invoice } = vendor;
+          const { vendor_email, vendor_invoice, vendor_name } = vendor;
+          if (vendor.scheduled_req !== "pending") {
+            console.log(
+              `Skipping ${vendor.vendor_email} — Already processed & not pending`
+            );
+            continue;
+          }
 
           const mailOptions = {
             from: "remorsivemate@gmail.com",
             to: vendor_email,
             subject: `📄 Invoice from ${vendor_name}`,
-            text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
+            text: `Dear beloved vendor ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
           };
 
           try {
             await transporter.sendMail(mailOptions);
             console.log(`Email sent to ${vendor_email}`);
 
-            // Mark as sent if successfully sent
             await VendorData.updateOne(
               { _id: vendor._id },
               { $set: { scheduled_req: "sent" } }
@@ -122,13 +144,49 @@ app.post("/api/schedule-email", async (req, res) => {
             );
           }
         }
+
+        // CUSTOMER EMAIL LOGIC
+        const custData = await CustData.find();
+
+        for (let cust of custData) {
+          const { cust_email, cust_invoice, cust_name } = cust;
+          if (cust.scheduled_req !== "pending") {
+            console.log(
+              `Skipping ${cust.cust_email} — Already processed & not pending`
+            );
+            continue;
+          }
+
+          const mailOptions = {
+            from: "remorsivemate@gmail.com",
+            to: cust_email,
+            subject: `📄 Invoice from ${cust_name}`,
+            text: `Dear beloved Customer ${cust_name},\n\nPlease find your invoice PDF file at the following link: ${cust_invoice}\n\nBest regards,\nXYZ Company`,
+          };
+
+          try {
+            await transporter.sendMail(mailOptions);
+            console.log(`Email sent to ${cust_email}`);
+
+            await CustData.updateOne(
+              { _id: cust._id },
+              { $set: { scheduled_req: "sent" } }
+            );
+          } catch (err) {
+            console.error(`Failed to send email to ${cust_email}:`, err);
+            await CustData.updateOne(
+              { _id: cust._id },
+              { $set: { scheduled_req: "pending" } }
+            );
+          }
+        }
       } catch (err) {
         console.error("Error sending invoices:", err);
       }
     });
 
     res.status(200).json({
-      message: `Emails scheduled to be sent to all vendors at ${scheduleTime}`,
+      message: `Emails scheduled to be sent to all vendors and customers at ${scheduleTime}`,
     });
   } catch (err) {
     console.error("Error scheduling email:", err);
@@ -138,100 +196,208 @@ app.post("/api/schedule-email", async (req, res) => {
 
 async function rescheduleEmailsOnStartup() {
   try {
-    const now = new Date();
+    await rescheduleForCollection(VendorData, "Vendor");
+    await rescheduleForCollection(CustomerData, "Customer");
+  } catch (err) {
+    console.error("Error during full rescheduling:", err);
+  }
+}
 
-    // Missed emails - immediately send if scheduled time already passed
-    const missedVendors = await VendorData.find({
-      scheduled_req: "scheduled",
-      scheduledTime: { $lte: now },
-    });
+const rescheduleForCollection = async (
+  CollectionModel,
+  roleLabel = "Vendor"
+) => {
+  const now = new Date();
+  const allEntries = await CollectionModel.find({});
 
-    for (let vendor of missedVendors) {
-      try {
-        const { vendor_name, vendor_email, vendor_invoice } = vendor;
+  for (let entry of allEntries) {
+    const {
+      scheduledTime,
+      scheduled_req,
+      vendor_name,
+      vendor_email,
+      vendor_invoice,
+      cust_name,
+      cust_email,
+      cust_invoice,
+    } = entry;
 
-        const mailOptions = {
-          from: "remorsivemate@gmail.com",
-          to: vendor_email,
-          subject: `📄 Invoice from ${vendor_name}`,
-          text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log(`(Missed) Immediate email sent to ${vendor_email}`);
-
-        await VendorData.updateOne(
-          { _id: vendor._id },
-          { $set: { scheduled_req: "sent" } }
-        );
-      } catch (err) {
-        console.error(
-          `(Missed) Failed to send email to ${vendor.vendor_email}:`,
-          err
-        );
-        await VendorData.updateOne(
-          { _id: vendor._id },
-          { $set: { scheduled_req: "pending" } }
-        );
-      }
+    if (!scheduledTime || scheduledTime.trim() === "") {
+      console.log(
+        `Skipping ${roleLabel} ${entry._id} due to missing or empty scheduledTime`
+      );
+      continue;
     }
 
-    // Reschedule future emails
-    const futureVendors = await VendorData.find({
-      scheduled_req: "scheduled",
-      scheduledTime: { $gt: now },
-    });
+    const name = vendor_name || cust_name;
+    const email = vendor_email || cust_email;
+    const invoice = vendor_invoice || cust_invoice;
 
-    futureVendors.forEach((vendor) => {
-      const scheduleDate = new Date(vendor.scheduledTime);
-      let cronTime;
+    const isTimeOnly =
+      typeof scheduledTime === "string" && /^\d{2}:\d{2}$/.test(scheduledTime);
+    const today = now.toISOString().split("T")[0];
+    const currentTime = now.toTimeString().slice(0, 5);
 
-      // Check if it's a time-only schedule (daily)
-      if (vendor.scheduledTime.indexOf("T") === -1) {
-        // Time-only schedule: Run every day at the specified time
-        cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} * * *`;
-      } else {
-        // Date-time schedule: Specific date
-        cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
-          scheduleDate.getMonth() + 1
-        } *`;
-      }
+    if (isTimeOnly) {
+      const [hourStr, minuteStr] = scheduledTime.split(":");
+      const hour = parseInt(hourStr, 10);
+      const minute = parseInt(minuteStr, 10);
+      const cronTime = `${minute} ${hour} * * *`;
 
-      cron.schedule(cronTime, async () => {
+      if (scheduled_req === "pending" && scheduledTime <= currentTime) {
+        const mailOptions = {
+          from: "remorsivemate@gmail.com",
+          to: email,
+          subject: `📄 Invoice from ${name}`,
+          text: `Dear ${
+            roleLabel === "Customer" ? "Customer" : "Vendor"
+          }  ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+        };
+
         try {
-          const { vendor_name, vendor_email, vendor_invoice } = vendor;
+          await transporter.sendMail(mailOptions);
+          console.log(`(${roleLabel} Recovery) Missed Email sent to ${email}`);
+          await CollectionModel.updateOne(
+            { _id: entry._id },
+            { $set: { scheduled_req: "sent" } }
+          );
 
+          // After sending the missed email, schedule for the next day
+          cron.schedule(cronTime, async () => {
+            // Check if the request is still pending before sending again
+            const freshEntry = await CollectionModel.findById(entry._id);
+            if (freshEntry.scheduled_req === "pending") {
+              // Now send the email
+              const mailOptions = {
+                from: "remorsivemate@gmail.com",
+                to: email,
+                subject: `📄 Invoice from ${name}`,
+                text: `Dear ${
+                  roleLabel === "Customer" ? "Customer" : "Vendor"
+                } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+              };
+
+              try {
+                await transporter.sendMail(mailOptions);
+                console.log(`(${roleLabel} Future) Email sent to ${email}`);
+                await CollectionModel.updateOne(
+                  { _id: entry._id },
+                  { $set: { scheduled_req: "sent" } }
+                );
+              } catch (err) {
+                console.error(
+                  `(${roleLabel} Future) Failed to send email to ${email}:`,
+                  err
+                );
+              }
+            }
+          });
+        } catch (err) {
+          console.error(
+            `(${roleLabel} Recovery) Failed to send email to ${email}:`,
+            err
+          );
+        }
+      } else {
+        cron.schedule(cronTime, async () => {
+          const latestEntry = await CollectionModel.findById(entry._id); // 🛑 Fetch fresh data!!
+          if (!latestEntry || latestEntry.scheduled_req === "sent") return;
           const mailOptions = {
             from: "remorsivemate@gmail.com",
-            to: vendor_email,
-            subject: `📄 Invoice from ${vendor_name}`,
-            text: `Dear ${vendor_name},\n\nPlease find your invoice PDF file at the following link: ${vendor_invoice}\n\nBest regards,\nXYZ Company`,
+            to: email,
+            subject: `📄 Invoice from ${name}`,
+            text: `Dear ${
+              roleLabel === "Customer" ? "Customer" : "Vendor"
+            }  ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
           };
 
-          await transporter.sendMail(mailOptions);
-          console.log(`(Restored) Email sent to ${vendor_email}`);
+          try {
+            await transporter.sendMail(mailOptions);
+            console.log(`(${roleLabel} Scheduled) Email sent to ${email}`);
+            await CollectionModel.updateOne(
+              { _id: entry._id },
+              { $set: { scheduled_req: "sent" } }
+            );
+          } catch (err) {
+            console.error(
+              `(${roleLabel} Scheduled) Failed to send email to ${email}:`,
+              err
+            );
+          }
+        });
+      }
+    } else {
+      const scheduleDate = new Date(scheduledTime);
 
-          // Mark as sent
-          await VendorData.updateOne(
-            { _id: vendor._id },
+      if (isNaN(scheduleDate)) {
+        console.error(`Invalid scheduleDate for ${roleLabel} ${entry._id}`);
+        continue;
+      }
+
+      if (scheduleDate <= now && scheduled_req === "scheduled") {
+        const mailOptions = {
+          from: "remorsivemate@gmail.com",
+          to: email,
+          subject: `📄 Invoice from ${name}`,
+          text: `Dear ${
+            roleLabel === "Customer" ? "Customer" : "Vendor"
+          } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+        };
+
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log(`(${roleLabel} Missed) Email sent to ${email}`);
+          await CollectionModel.updateOne(
+            { _id: entry._id },
             { $set: { scheduled_req: "sent" } }
           );
         } catch (err) {
           console.error(
-            `(Restored) Failed to send email to ${vendor.vendor_email}:`,
+            `(${roleLabel} Missed) Failed to send email to ${email}:`,
             err
           );
-          await VendorData.updateOne(
-            { _id: vendor._id },
+          await CollectionModel.updateOne(
+            { _id: entry._id },
             { $set: { scheduled_req: "pending" } }
           );
         }
-      });
-    });
-  } catch (err) {
-    console.error("Error during rescheduling on server start:", err);
+      } else if (scheduleDate > now && scheduled_req === "pending") {
+        const cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
+          scheduleDate.getMonth() + 1
+        } *`;
+
+        cron.schedule(cronTime, async () => {
+          const mailOptions = {
+            from: "remorsivemate@gmail.com",
+            to: email,
+            subject: `📄 Invoice from ${name}`,
+            text: `Dear beloved ${
+              roleLabel === "Customer" ? "Customer" : "Vendor"
+            } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+          };
+
+          try {
+            await transporter.sendMail(mailOptions);
+            console.log(`(${roleLabel} Future) Email sent to ${email}`);
+            await CollectionModel.updateOne(
+              { _id: entry._id },
+              { $set: { scheduled_req: "sent" } }
+            );
+          } catch (err) {
+            console.error(
+              `(${roleLabel} Future) Failed to send email to ${email}:`,
+              err
+            );
+            await CollectionModel.updateOne(
+              { _id: entry._id },
+              { $set: { scheduled_req: "pending" } }
+            );
+          }
+        });
+      }
+    }
   }
-}
+};
 
 app.listen(PORT, (err) => {
   if (err) return console.log("Error encountered at starting server !");

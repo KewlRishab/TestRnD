@@ -1,26 +1,26 @@
 const mongoose = require("mongoose");
 
-// Define the schema for vendor data
-const vendorSchema = new mongoose.Schema(
+// Define the schema for cust data
+const custSchema = new mongoose.Schema(
   {
-    vendor_name: {
+    cust_name: {
       type: String,
       required: true,
     },
-    vendor_address: {
+    cust_address: {
       type: String,
       required: true,
     },
-    vendor_phoneNo: {
+    cust_phoneNo: {
       type: String,
       required: true,
     },
-    vendor_email: {
+    cust_email: {
       type: String,
       required: true,
       match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
     },
-    vendor_invoice: {
+    cust_invoice: {
       type: String,
       required: true,
     },
@@ -46,9 +46,9 @@ const vendorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    collection: "vendorData",
+    collection: "custData",
   }
 );
 
-// Create the Vendor model from the schema
-module.exports = mongoose.model("Vendor", vendorSchema);
+// Create the cust model from the schema
+module.exports = mongoose.model("cust", custSchema);
