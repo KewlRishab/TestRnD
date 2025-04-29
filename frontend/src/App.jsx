@@ -6,19 +6,49 @@ import CustTable from "./components/CustTable";
 import CompTable from "./components/CompTable";
 
 function App() {
+  const [refreshTrigger, setRefreshTrigger] = useState("");
+  // Single (date + time)
   const [scheduleDateTime, setScheduleDateTime] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(false);
+
+  // Daily (just time)
   const [scheduledTime, setScheduledTime] = useState("");
+
+  // Weekly (time + weekday)
+  const [weeklyTime, setWeeklyTime] = useState("");
+  const [weeklyDay, setWeeklyDay] = useState("Monday");
+
+  // Monthly (time + date of the month)
+  const [monthlyTime, setMonthlyTime] = useState("");
+  const [monthlyDay, setMonthlyDay] = useState(""); // 1 to 31
 
   const handleValueChange = (time, selLabel) => {
     console.log(selLabel, time);
-    selLabel === "onlyTime"
-      ? setScheduledTime(time)
-      : setScheduleDateTime(time);
+    switch (selLabel) {
+      case "onlyTime":
+        setScheduledTime(time);
+        break;
+      case "dateTime":
+        setScheduleDateTime(time);
+        break;
+      case "weeklyTime":
+        setWeeklyTime(time);
+        break;
+      case "weeklyDay":
+        setWeeklyDay(time);
+        break;
+      case "monthlyTime":
+        setMonthlyTime(time);
+        break;
+      case "monthlyDay":
+        setMonthlyDay(time);
+        break;
+      default:
+        break;
+    }
   };
 
   const handleSchedule = async () => {
-    if (!scheduledTime && !scheduleDateTime) {
+    if (!scheduledTime && !scheduleDateTime && !weeklyTime && !monthlyTime) {
       alert(
         "Please select a specific duration from the Date-Time or Time box before scheduling!"
       );
@@ -26,12 +56,33 @@ function App() {
     }
 
     try {
+      const payload = {
+        scheduleType: "", 
+        scheduleTime: "",
+        scheduleDay: "",
+      };
+
+      if (scheduleDateTime) {
+        payload.scheduleType = "single";
+        payload.scheduleTime = scheduleDateTime;
+      } else if (scheduledTime) {
+        payload.scheduleType = "daily";
+        payload.scheduleTime = scheduledTime;
+      } else if (weeklyTime) {
+        payload.scheduleType = "weekly";
+        payload.scheduleTime = weeklyTime;
+        payload.scheduleDay = weeklyDay; // Monday, Tuesday, etc.
+      } else if (monthlyTime) {
+        payload.scheduleType = "monthly";
+        payload.scheduleTime = monthlyTime;
+        payload.scheduleDay = monthlyDay; // 1 to 31
+      }
+
       const response = await axios.post(
         "http://localhost:8000/api/schedule-email",
-        {
-          scheduleTime: scheduleDateTime || scheduledTime,
-        }
+        payload
       );
+
       alert("Email scheduled successfully! ✅");
       console.log(response.data);
       setRefreshTrigger((prev) => !prev);
@@ -94,10 +145,15 @@ function App() {
             type="time"
             id="weekTOnly"
             className="normalInputStyle"
-            value={scheduledTime}
-            onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
+            value={weeklyTime}
+            onChange={(e) => handleValueChange(e.target.value, "weeklyTime")}
           />
-          <select id="weekSOnly" className="normalInputStyle">
+          <select
+            id="weekSOnly"
+            className="normalInputStyle"
+            value={weeklyDay}
+            onChange={(e) => handleValueChange(e.target.value, "weeklyDay")}
+          >
             <option value="Monday">Mon</option>
             <option value="Tuesday">Tue</option>
             <option value="Wednesday">Wed</option>
@@ -118,20 +174,23 @@ function App() {
             type="time"
             id="monthTOnly"
             className="normalInputStyle"
-            value={scheduledTime}
-            onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
+            value={monthlyTime}
+            onChange={(e) => handleValueChange(e.target.value, "monthlyTime")}
           />
           <input
             type="number"
             id="monthDOnly"
+            placeholder="dd"
             className="normalInputStyle"
             min="1"
             max="31"
+            value={monthlyDay}
             onInput={(e) => {
               const value = parseInt(e.target.value);
               if (value < 1) e.target.value = 1;
               if (value > 31) e.target.value = 31;
             }}
+            onChange={(e) => handleValueChange(e.target.value, "monthlyDay")}
           />
         </div>
       </div>
