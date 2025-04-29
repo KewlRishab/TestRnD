@@ -9,11 +9,14 @@ const VendorData = require("./models/VendorData");
 const CustData = require("./models/CustomerData");
 const CustomerData = require("./models/CustomerData");
 const CompData = require("./models/CompanyData");
+const vendorRoutes = require('./routes/vendorRoutes');
+const customerRoutes = require('./routes/customerRoutes');
+const compRoutes = require('./routes/compRoutes');
 let cronJobs = {};
 
 app.use(express.json());
 
-app.use(
+app.use( 
   cors({
     origin: "http://localhost:5173",
   })
@@ -34,40 +37,16 @@ const transporter = nodemailer.createTransport({
 
 app.get("/", async (req, res) => {
   res.send("Welcome to Rishab's Backend Server");
-});
+}); 
 
 // API to get all vendor data
-app.get("/api/getVendorData", async (req, res) => {
-  try {
-    const vendorData = await VendorData.find();
-    res.status(200).json(vendorData);
-  } catch (err) {
-    console.error("Error getting vendor data:", err);
-    res.status(500).json({ message: "Error getting vendor data" });
-  }
-});
+app.use('/api', vendorRoutes);
 
 //API to get all customer data
-app.get("/api/getCustData", async (req, res) => {
-  try {
-    const custData = await CustData.find();
-    res.status(200).json(custData);
-  } catch (err) {
-    console.error("Error getting customer data:", err);
-    res.status(500).json({ message: "Error getting customer data" });
-  }
-});
+app.use('/api', customerRoutes);
 
 //API to get all Company Data
-app.get("/api/getCompData", async (req, res) => {
-  try {
-    const compData = await CompData.find();
-    res.status(200).json(compData);
-  } catch (err) {
-    console.error("Error getting Company data:", err);
-    res.status(500).json({ message: "Error getting Company data" });
-  }
-});
+app.use('/api', compRoutes);
 
 // API to schedule and send email to all vendors at a specific time
 app.post("/api/schedule-email", async (req, res) => {
@@ -399,7 +378,7 @@ const rescheduleForCollection = async (
         continue;
       }
 
-      if (scheduleDate <= now && scheduled_req === "scheduled") {
+      if (scheduleDate <= now && scheduled_req === "pending") {
         const mailOptions = {
           from: "remorsivemate@gmail.com",
           to: email,

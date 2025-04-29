@@ -6,14 +6,16 @@
     flex-direction: column;
     // justify-content: center;
     align-items: center;
+
     // background: linear-gradient(to right, rgb(255, 252, 240), rgb(232, 248, 255));
     // box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-    .tableCont{
-        padding:0px 20px;
+    .tableCont {
+        padding: 0px 20px;
         display: flex;
         flex-direction: column;
 
     }
+
     .buttonHeading {
         font-size: 18px;
         font-family: 'Courier New', Courier, monospace;
@@ -22,35 +24,32 @@
         color: rgb(0, 0, 0);
     }
 
-    #onlyTime{
-       margin-bottom: 10px;
-       padding:8px 12px;
-       border:1px solid #ccc;
-       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-       font-size:16px;
-       color:#333; 
-       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        outline: none;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        &:focus {
-            border-color: #4a90e2;
-            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
-        }
-    }
-    #dateTime {
-        padding: 8px 12px;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        font-size: 16px;
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #fdfdfd;
-        color: #333;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-        outline: none;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        &:focus {
-            border-color: #4a90e2;
-            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+    .inpCont {
+        display: flex;
+        flex-direction: column;
+        gap:10px;
+
+        .timeInp {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 22px;
+
+            .normalInputStyle {
+                padding: 8px 12px;
+                border: 1px solid #ccc;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-size: 16px;
+                color: #333;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                outline: none;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+                &:focus {
+                    border-color: #4a90e2;
+                    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+                }
+            }
         }
     }
 

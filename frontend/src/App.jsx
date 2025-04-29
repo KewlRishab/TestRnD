@@ -46,25 +46,95 @@ function App() {
       <div className="tableCont">
         <VendorTable refreshTrigger={refreshTrigger} />
         <CustTable refreshTrigger={refreshTrigger} />
-        <CompTable refreshTrigger={refreshTrigger}/>
+        <CompTable refreshTrigger={refreshTrigger} />
       </div>
       <div className="buttonHeading">
         Please select the date and time below to schedule An Email!
       </div>
-      <input
-        type="time"
-        id="onlyTime"
-        value={scheduledTime}
-        onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
-      />
-      <input
-        type="datetime-local"
-        id="dateTime"
-        name="scheduleTime"
-        value={scheduleDateTime}
-        onChange={(e) => handleValueChange(e.target.value, "dateTime")}
-      />
-
+      <div className="inpCont">
+        <div className="timeInp">
+          <label
+            htmlFor="onlyTime"
+            style={{ fontFamily: "sans-serif", fontWeight: "600" }}
+          >
+            Daily Scheduling:-
+          </label>
+          <input
+            type="time"
+            id="onlyTime"
+            className="normalInputStyle"
+            value={scheduledTime}
+            onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
+          />
+        </div>
+        <div className="timeInp">
+          <label
+            htmlFor="dateTime"
+            style={{ fontFamily: "sans-serif", fontWeight: "600" }}
+          >
+            Single Scheduling :-
+          </label>
+          <input
+            type="datetime-local"
+            id="dateTime"
+            className="normalInputStyle"
+            name="scheduleTime"
+            value={scheduleDateTime}
+            onChange={(e) => handleValueChange(e.target.value, "dateTime")}
+          />
+        </div>
+        <div className="timeInp">
+          <label
+            htmlFor="weekTOnly"
+            style={{ fontFamily: "sans-serif", fontWeight: "600" }}
+          >
+            Weekly Scheduling :-
+          </label>
+          <input
+            type="time"
+            id="weekTOnly"
+            className="normalInputStyle"
+            value={scheduledTime}
+            onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
+          />
+          <select id="weekSOnly" className="normalInputStyle">
+            <option value="Monday">Mon</option>
+            <option value="Tuesday">Tue</option>
+            <option value="Wednesday">Wed</option>
+            <option value="Thursday">Thu</option>
+            <option value="Friday">Fri</option>
+            <option value="Saturday">Sat</option>
+            <option value="Sunday">Sun</option>
+          </select>
+        </div>
+        <div className="timeInp">
+          <label
+            htmlFor="monthTOnly"
+            style={{ fontFamily: "sans-serif", fontWeight: "600" }}
+          >
+            Monthly Scheduling :-
+          </label>
+          <input
+            type="time"
+            id="monthTOnly"
+            className="normalInputStyle"
+            value={scheduledTime}
+            onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
+          />
+          <input
+            type="number"
+            id="monthDOnly"
+            className="normalInputStyle"
+            min="1"
+            max="31"
+            onInput={(e) => {
+              const value = parseInt(e.target.value);
+              if (value < 1) e.target.value = 1;
+              if (value > 31) e.target.value = 31;
+            }}
+          />
+        </div>
+      </div>
       <button className="actionButton" onClick={handleSchedule}>
         Save Schedule!
       </button>
