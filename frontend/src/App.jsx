@@ -49,15 +49,16 @@ function App() {
 
   const handleSchedule = async () => {
     if (!scheduledTime && !scheduleDateTime && !weeklyTime && !monthlyTime) {
-      alert(
-        "Please select a specific duration from the Date-Time or Time box before scheduling!"
-      );
+      alert("Please select a specific duration from the Date-Time or Time box before scheduling!");
+      return;
+    } else if (monthlyTime && !monthlyDay) {
+      alert("Please Select a day specified for Monthly scheduling!");
       return;
     }
 
     try {
       const payload = {
-        scheduleType: "", 
+        scheduleType: "",
         scheduleTime: "",
         scheduleDay: "",
       };
@@ -77,6 +78,8 @@ function App() {
         payload.scheduleTime = monthlyTime;
         payload.scheduleDay = monthlyDay; // 1 to 31
       }
+
+      // return console.log(payload);
 
       const response = await axios.post(
         "http://localhost:8000/api/schedule-email",

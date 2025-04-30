@@ -33,6 +33,16 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    scheduledType:{
+      type:String,
+      default:null,
+      enum:["weekly","single","monthly","daily"]
+    },
+    scheduledDay:{
+      type:String,
+      default:null,
+    }
+
     // lastSentData: {
     //   date: {
     //     type: String, // Stores the date as a string, e.g., "2025-04-24"

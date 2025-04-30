@@ -1,5 +1,5 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
+const transporter = require("./config/transporter");
 const app = express();
 const PORT = 8000;
 const cron = require("node-cron");
@@ -9,14 +9,14 @@ const VendorData = require("./models/VendorData");
 const CustData = require("./models/CustomerData");
 const CustomerData = require("./models/CustomerData");
 const CompData = require("./models/CompanyData");
-const vendorRoutes = require('./routes/vendorRoutes');
-const customerRoutes = require('./routes/customerRoutes');
-const compRoutes = require('./routes/compRoutes');
+const vendorRoutes = require("./routes/vendorRoutes");
+const customerRoutes = require("./routes/customerRoutes");
+const compRoutes = require("./routes/compRoutes");
 let cronJobs = {};
 
 app.use(express.json());
 
-app.use( 
+app.use(
   cors({
     origin: "http://localhost:5173",
   })
@@ -26,40 +26,35 @@ connectDB().then(async () => {
   await rescheduleEmailsOnStartup(); // Await this to ensure it's done before server is considered ready
 });
 
-// Transporter for Email
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "remorsivemate@gmail.com",
-    pass: "tmkl ukon xvbh gvuf",
-  },
-});
-
 app.get("/", async (req, res) => {
   res.send("Welcome to Rishab's Backend Server");
-}); 
+});
 
 // API to get all vendor data
-app.use('/api', vendorRoutes);
+app.use("/api", vendorRoutes);
 
 //API to get all customer data
-app.use('/api', customerRoutes);
+app.use("/api", customerRoutes);
 
 //API to get all Company Data
-app.use('/api', compRoutes);
+app.use("/api", compRoutes);
 
 // API to schedule and send email to all vendors at a specific time
 app.post("/api/schedule-email", async (req, res) => {
-  const { scheduleTime } = req.body;
+  const { scheduleTime, scheduleDay, scheduleType } = req.body;
 
   if (!scheduleTime) {
     return res.status(400).json({ message: "scheduleTime is required" });
   }
-
+  console.log("Schedule Type---------->", scheduleType);
   let cronTime;
   let timeToStore;
   let currDate;
-  if (scheduleTime.indexOf("T") === -1) {
+  await VendorData.updateMany({}, { $set: { scheduledType: scheduleType } });
+  await CustData.updateMany({}, { $set: { scheduledType: scheduleType } });
+  await CompData.updateMany({}, { $set: { scheduledType: scheduleType } });
+
+  if (scheduleType === "daily") {
     // Time-only format like "18:10"
     const [hourStr, minuteStr] = scheduleTime.split(":");
     const hour = parseInt(hourStr, 10);
@@ -73,6 +68,59 @@ app.post("/api/schedule-email", async (req, res) => {
     timeToStore = scheduleTime; // store "18:10" directly
     const now = new Date();
     currDate = now.toISOString().split("T")[0]; // Get current date
+  } else if (scheduleType === "weekly") {
+    await VendorData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
+    await CustData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
+    await CompData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
+    const [hour, minute] = scheduleTime.split(":");
+    const dayOfWeekMap = {
+      Sunday: 0,
+      Monday: 1,
+      Tuesday: 2,
+      Wednesday: 3,
+      Thursday: 4,
+      Friday: 5,
+      Saturday: 6,
+    };
+
+    const dayNum = dayOfWeekMap[scheduleDay];
+
+    if (dayNum === undefined) {
+      return res.status(400).json({ message: "Invalid scheduleDay" });
+    }
+    cronTime = `${minute} ${hour} * * ${dayNum}`;
+    timeToStore = scheduleTime;
+    const now = new Date();
+    currDate = `${scheduleDay}-${now.toISOString().split("T")[0]}`;
+  } else if (scheduleType === "monthly") {
+    const [hourStr, minuteStr] = scheduleTime.split(":");
+    const hour = parseInt(hourStr, 10);
+    const minute = parseInt(minuteStr, 10);
+    const dayOfMonth = parseInt(scheduleDay, 10);
+
+    if (
+      isNaN(hour) ||
+      isNaN(minute) ||
+      isNaN(dayOfMonth) ||
+      dayOfMonth < 1 ||
+      dayOfMonth > 31
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid scheduleTime or scheduleDay" });
+    }
+
+    cronTime = `${minute} ${hour} ${dayOfMonth} * *`; // Runs on specified day every month
+    timeToStore = scheduleTime;
+    const now = new Date();
+    currDate = `monthly-${dayOfMonth}-${now.toISOString().split("T")[0]}`;
+
+    console.log("📅 Monthly Cron Configured:", cronTime);
+
+    // Save day for reference (optional)
+    await VendorData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
+    await CustData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
+    await CompData.updateMany({}, { $set: { scheduledDay: scheduleDay } });
   } else {
     // Full datetime format like "2025-04-24T10:36"
     const scheduleDate = new Date(scheduleTime);
@@ -174,7 +222,7 @@ app.post("/api/schedule-email", async (req, res) => {
           }
         }
 
-        // Company Email Logic
+        // Company Email Logics
         const compData = await CompData.find();
 
         for (let comp of compData) {
@@ -204,9 +252,9 @@ app.post("/api/schedule-email", async (req, res) => {
             console.error(`Failed to send email to ${comp_email}:`, err);
             await CompData.updateOne(
               { _id: comp._id },
-              { $set: { scheduled_req: "pending" } } 
+              { $set: { scheduled_req: "pending" } }
             );
-          } 
+          }
         }
       } catch (err) {
         console.error("Error sending invoices:", err);
@@ -241,6 +289,8 @@ const rescheduleForCollection = async (
 
   for (let entry of allEntries) {
     const {
+      scheduledDay,
+      scheduledType,
       scheduledTime,
       scheduled_req,
       vendor_name,
@@ -265,12 +315,12 @@ const rescheduleForCollection = async (
     const email = vendor_email || cust_email || comp_email;
     const invoice = vendor_invoice || cust_invoice || comp_invoice;
 
-    const isTimeOnly =
-      typeof scheduledTime === "string" && /^\d{2}:\d{2}$/.test(scheduledTime);
-    const today = now.toISOString().split("T")[0];
+    // const isTimeOnly =
+    //   typeof scheduledTime === "string" && /^\d{2}:\d{2}$/.test(scheduledTime);
+    // const today = now.toISOString().split("T")[0];
     const currentTime = now.toTimeString().slice(0, 5);
 
-    if (isTimeOnly) {
+    if (scheduledType === "daily") {
       const [hourStr, minuteStr] = scheduledTime.split(":");
       const hour = parseInt(hourStr, 10);
       const minute = parseInt(minuteStr, 10);
@@ -370,6 +420,101 @@ const rescheduleForCollection = async (
           }
         });
       }
+    } else if (scheduledType === "weekly") {
+      const currentDay = new Date().getDay(); // Sunday=0, Monday=1, ..., Saturday=6
+      const dayMap = {
+        Sunday: 0,
+        Monday: 1,
+        Tuesday: 2,
+        Wednesday: 3,
+        Thursday: 4,
+        Friday: 5,
+        Saturday: 6,
+      };
+      const scheduledDayNum = dayMap[scheduledDay]; // scheduleDay from DB like "Monday"
+      const [hourStr, minuteStr] = scheduledTime.split(":");
+      const hour = parseInt(hourStr, 10);
+      const minute = parseInt(minuteStr, 10);
+
+      const cronTime = `${minute} ${hour} * * ${scheduledDayNum}`;
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+
+      const isToday = currentDay === scheduledDayNum;
+      const hasTimePassed =
+        currentHour > hour || (currentHour === hour && currentMinute >= minute);
+      const isEarlierDay = currentDay > scheduledDayNum;
+
+      const shouldSendNow =
+        scheduled_req === "pending" &&
+        (isEarlierDay || (isToday && hasTimePassed));
+
+      if (shouldSendNow) {
+        // Missed weekly email, send now
+        const mailOptions = {
+          from: "remorsivemate@gmail.com",
+          to: email,
+          subject: `📄 Invoice from ${name}`,
+          text: `Dear ${
+            roleLabel === "Customer"
+              ? "Customer"
+              : roleLabel === "Company"
+              ? "Company"
+              : "Vendor"
+          } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+        };
+
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log(
+            `(${roleLabel} Recovery) Missed weekly email sent to ${email}`
+          );
+          await CollectionModel.updateOne(
+            { _id: entry._id },
+            { $set: { scheduled_req: "sent" } }
+          );
+        } catch (err) {
+          console.error(
+            `(${roleLabel} Recovery) Failed to send missed weekly email to ${email}:`,
+            err
+          );
+        }
+      }
+      // Set up weekly cron to send on next scheduledDay
+      cron.schedule(cronTime, async () => {
+        const freshEntry = await CollectionModel.findById(entry._id);
+        if (!freshEntry || freshEntry.scheduled_req === "sent") return;
+
+        const mailOptions = {
+          from: "remorsivemate@gmail.com",
+          to: email,
+          subject: `📄 Invoice from ${name}`,
+          text: `Dear ${
+            roleLabel === "Customer"
+              ? "Customer"
+              : roleLabel === "Company"
+              ? "Company"
+              : "Vendor"
+          } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+        };
+
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log(`(${roleLabel} Weekly Scheduled) Email sent to ${email}`);
+          await CollectionModel.updateOne(
+            { _id: entry._id },
+            { $set: { scheduled_req: "sent" } }
+          );
+        } catch (err) {
+          console.error(
+            `(${roleLabel} Weekly Scheduled) Failed to send email to ${email}:`,
+            err
+          );
+        }
+      });
+    } else if (scheduledType === "monthly") {
+      
     } else {
       const scheduleDate = new Date(scheduledTime);
 
@@ -410,11 +555,6 @@ const rescheduleForCollection = async (
           );
         }
       } else if (scheduleDate > now && scheduled_req === "pending") {
-        const cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
-          scheduleDate.getMonth() + 1
-        } *`;
-
-        cron.schedule(cronTime, async () => {
           const mailOptions = {
             from: "remorsivemate@gmail.com",
             to: email,
@@ -445,7 +585,6 @@ const rescheduleForCollection = async (
               { $set: { scheduled_req: "pending" } }
             );
           }
-        });
       }
     }
   }
