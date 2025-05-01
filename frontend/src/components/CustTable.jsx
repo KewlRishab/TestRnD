@@ -43,7 +43,7 @@ const CustTable = ({refreshTrigger}) => {
               <td>{cust.cust_invoice}</td>
               <td
                 style={{
-                  color: cust.scheduled_req === 'scheduled' ? 'green' : 'orange',
+                  color: cust.scheduled_req === 'sent' ? 'green' : 'orange',
                   fontWeight: 'bold',
                 }}
               >

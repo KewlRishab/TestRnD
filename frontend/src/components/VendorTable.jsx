@@ -43,7 +43,7 @@ const VendorTable = ({refreshTrigger}) => {
               <td>{vendor.vendor_invoice}</td>
               <td
                 style={{
-                  color: vendor.scheduled_req === 'scheduled' ? 'green' : 'orange',
+                  color: vendor.scheduled_req === 'sent' ? 'green' : 'orange',
                   fontWeight: 'bold',
                 }}
               >

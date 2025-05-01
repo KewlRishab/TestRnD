@@ -43,7 +43,7 @@ const CompTable = ({refreshTrigger}) => {
               <td>{comp.comp_invoice}</td>
               <td
                 style={{
-                  color: comp.scheduled_req === 'scheduled' ? 'green' : 'orange',
+                  color: comp.scheduled_req === 'sent' ? 'green' : 'orange',
                   fontWeight: 'bold',
                 }}
               >

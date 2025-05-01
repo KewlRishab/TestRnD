@@ -59,18 +59,18 @@
 
 
     .actionButton {
-        margin-top: 20px;
+        margin: 20px;
         text-decoration: none;
-        background: rgba(0, 0, 0, 0.323);
+        background: rgb(20 73 105 / 41%);
         color: white;
-        border-radius: 8px;
+        border-radius: 18px;
         font-size: 16px;
         border: none;
         padding: 20px;
         font-family: cursive;
 
         &:hover {
-            background: rgba(0, 0, 0, 0.611);
+            background: rgb(24 200 255 / 87%);
             transition: background 0.4s ease-in-out;
             cursor: pointer;
         }
