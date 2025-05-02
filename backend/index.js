@@ -73,7 +73,7 @@ const rescheduleForCollection = async (
       vendor_invoice,
       cust_name,
       cust_email,
-      cust_invoice,
+      cust_invoice,  
       comp_name,
       comp_email,
       comp_invoice,

@@ -4,9 +4,11 @@ import { useState } from "react";
 import axios from "axios";
 import CustTable from "./components/CustTable";
 import CompTable from "./components/CompTable";
+import EmailSchForm from "./components/EmailSchForm";
 
 function App() {
   const [refreshTrigger, setRefreshTrigger] = useState("");
+
   // Single (date + time)
   const [scheduleDateTime, setScheduleDateTime] = useState("");
 
@@ -120,9 +122,9 @@ function App() {
             value={scheduledTime}
             onChange={(e) => handleValueChange(e.target.value, "onlyTime")}
           />
-        </div>
-        <div className="timeInp">
-          <label
+        </div>  
+        <div className="timeInp"> 
+          <label     
             htmlFor="dateTime"
             style={{ fontFamily: "sans-serif", fontWeight: "600" }}
           >
@@ -196,6 +198,8 @@ function App() {
             onChange={(e) => handleValueChange(e.target.value, "monthlyDay")}
           />
         </div>
+        <EmailSchForm/>
+        
       </div>
       <button className="actionButton" onClick={handleSchedule}>
         Save Schedule!
