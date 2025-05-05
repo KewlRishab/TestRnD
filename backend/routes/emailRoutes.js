@@ -11,7 +11,12 @@ const router = express.Router();
 
 const cronJobs = {};
 
-const sendEmailAndUpdateIteration = async (userData, transporter, userType, Model) => {
+const sendEmailAndUpdateIteration = async (
+  userData,
+  transporter,
+  userType,
+  Model
+) => {
   const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
 
   for (let user of userData) {
@@ -27,6 +32,7 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
         _id,
         Iteration,
         EndDay,
+        lastSentDate
       } = user);
     } else if (user.cust_email) {
       ({
@@ -37,6 +43,7 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
         _id,
         Iteration,
         EndDay,
+        lastSentDate
       } = user);
     } else if (user.comp_email) {
       ({
@@ -47,6 +54,7 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
         _id,
         Iteration,
         EndDay,
+        lastSentDate
       } = user);
     } else {
       console.warn("Skipping unknown user type:", user);
@@ -75,11 +83,11 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
     }
 
     try {
-      // ✅ Send the email first
+      // Send the email first
       await sendEmail(email, name, userType, invoice, user, transporter, Model);
       console.log(`✅ Email sent to ${email}`);
 
-      // ✅ Only then update the DB
+      // Only then update the DB
       if (Iteration && Iteration > 0) {
         await Model.updateOne(
           { _id },
@@ -91,9 +99,14 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
           }
         );
         console.log(`Iteration decremented for ${email}`);
-      } else {
+      }
+      else if(EndDay){
+        await Model.updateOne({ _id }, { $set: { scheduled_req: "sent", lastSentDate:new Date().toISOString().split("T")[0] } });
+        console.log(`Marked as sent EndDay-based schedule`);
+      }
+       else {
         await Model.updateOne({ _id }, { $set: { scheduled_req: "sent" } });
-        console.log(`Marked as sent for one-time or EndDay-based schedule`);
+        console.log(`Marked as sent for one-time or never ending `);
       }
     } catch (err) {
       console.error(`❌ Failed to send email to ${email}:`, err);
@@ -102,7 +115,6 @@ const sendEmailAndUpdateIteration = async (userData, transporter, userType, Mode
     }
   }
 };
-
 
 const configureDailySchedule = (scheduleTime) => {
   const [hourStr, minuteStr] = scheduleTime.split(":");
@@ -186,7 +198,8 @@ router.post("/schedule-email", async (req, res) => {
     await updateUserTypeData(userType, {
       scheduledType: scheduleType,
       Iteration: Iteration === "" ? 0 : parseInt(Iteration, 10),
-      EndDay,
+      EndDay, 
+      lastSentDate:""
     });
   };
 
@@ -240,9 +253,15 @@ router.post("/schedule-email", async (req, res) => {
 
   try {
     // Store the new time in DB for all tables
-    await VendorData.updateMany({}, { $set: { scheduledTime: timeToStore } });
-    await CustData.updateMany({}, { $set: { scheduledTime: timeToStore } });
-    await CompData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    if (userType === "Vendor" || userType === "All") {
+      await VendorData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    }
+    if (userType === "Customer" || userType === "All") {
+      await CustData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    }
+    if (userType === "Company" || userType === "All") {
+      await CompData.updateMany({}, { $set: { scheduledTime: timeToStore } });
+    }
 
     // Stop previous cron job if exists
     if (cronJobs[currDate]) {

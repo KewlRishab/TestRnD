@@ -50,8 +50,10 @@ const vendorSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    
-
+    lastSentDate:{
+      type:String,
+      default:null
+    }
     // lastSentData: {
     //   date: {
     //     type: String, // Stores the date as a string, e.g., "2025-04-24"

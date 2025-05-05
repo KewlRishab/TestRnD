@@ -23,10 +23,6 @@ const sendEmail = async (
   try {
     await transporter.sendMail(mailOptions);
     console.log(`(${roleLabel}) Email sent to ${email}`);
-    await CollectionModel.updateOne(
-      { _id: entry._id },
-      { $set: { scheduled_req: "sent" } }
-    );
   } catch (err) {
     console.error(`(${roleLabel}) Failed to send email to ${email}:`, err);
   }
