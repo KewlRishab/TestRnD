@@ -106,13 +106,12 @@ const rescheduleForCollection = async (
         (currentHour === scheduledHour && currentMinute >= scheduledMinute);
 
       const isEndDayValid =
-        EndDay &&
-        new Date().toISOString().split("T")[0] < EndDay.split("T")[0];
-  
+        EndDay && new Date().toISOString().split("T")[0] < EndDay.split("T")[0];
+
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is parsed to a number
 
       const isNeverEnding = !EndDay && !Iteration;
-  
+
       const shouldSendNow =
         scheduled_req === "pending" &&
         hasTimePassed &&
@@ -137,7 +136,6 @@ const rescheduleForCollection = async (
           console.log(
             `(${roleLabel} Recovery) Missed daily email sent to ${email}`
           );
-
           if (Iteration && parseInt(Iteration, 10) > 0) {
             // Check if Iteration is a valid positive number
             const newIteration = parseInt(Iteration, 10) - 1; // Decrement the iteration as a number
@@ -226,9 +224,9 @@ const rescheduleForCollection = async (
           );
           console.log(
             `(${roleLabel} Daily Scheduled) Email sent to ${freshEmail}`
-          );  
-          console.log("Email to be sent :",freshEmail);
-          console.log("Name to be sent :",freshName);
+          );
+          console.log("Email to be sent :", freshEmail);
+          console.log("Name to be sent :", freshName);
           if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
             // Ensure Iteration is a valid positive number
             const newIteration = parseInt(freshEntry.Iteration) - 1; // Decrement Iteration as a number
@@ -290,7 +288,7 @@ const rescheduleForCollection = async (
       const hasTimePassed =
         currentHour > hour || (currentHour === hour && currentMinute >= minute);
       const isEarlierDay = currentDay > scheduledDayNum;
-      
+
       const isEndDayValid =
         EndDay && now.toISOString().split("T")[0] < EndDay.split("T")[0];
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
@@ -307,7 +305,7 @@ const rescheduleForCollection = async (
       const cronTime = `${minute} ${hour} * * ${scheduledDayNum}`;
 
       if (shouldSendNow) {
-        try { 
+        try {
           await sendEmail(
             email,
             name,
@@ -477,10 +475,20 @@ const rescheduleForCollection = async (
             // Ensure Iteration is a valid number
             await CollectionModel.updateOne(
               { _id: entry._id },
-              {    
-                $set: { 
+              {
+                $set: {
                   scheduled_req: "sent",
                   Iteration: newIteration.toString(),
+                },
+              }
+            );
+          } else if (EndDay) {
+            await CollectionModel.updateOne(
+              { _id: entry._id },
+              {
+                $set: {
+                  scheduled_req: "sent",
+                  lastSentDate: new Date().toISOString().split("T")[0],
                 },
               }
             );
