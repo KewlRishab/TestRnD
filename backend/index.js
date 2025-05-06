@@ -107,15 +107,19 @@ const rescheduleForCollection = async (
 
       const isEndDayValid =
         EndDay &&
-        new Date().toISOString().split("T")[0] <= EndDay.split("T")[0];
+        new Date().toISOString().split("T")[0] < EndDay.split("T")[0];
+  
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is parsed to a number
 
       const isNeverEnding = !EndDay && !Iteration;
-
+  
       const shouldSendNow =
         scheduled_req === "pending" &&
         hasTimePassed &&
-        (isNeverEnding || isEndDayValid || isIterationValid ||(!isEndDayValid && lastSentDate!==EndDay));
+        (isNeverEnding ||
+          isEndDayValid ||
+          isIterationValid ||
+          (!isEndDayValid && lastSentDate !== EndDay));
 
       const cronTime = `${scheduledMinute} ${scheduledHour} * * *`; // Every day at HH:mm
 
@@ -141,7 +145,7 @@ const rescheduleForCollection = async (
               { _id: entry._id },
               {
                 // $inc: { Iteration: -1 }, // Decrementing by 1
-                $set: { 
+                $set: {
                   scheduled_req: "sent",
                   Iteration: newIteration.toString(), // Store as string back to database
                 },
@@ -174,45 +178,57 @@ const rescheduleForCollection = async (
       // Always schedule the daily cron
       cron.schedule(cronTime, async () => {
         const freshEntry = await CollectionModel.findById(entry._id);
+        const freshEmail =
+          freshEntry.vendor_email ||
+          freshEntry.cust_email ||
+          freshEntry.comp_email;
+        const freshName =
+          freshEntry.vendor_name ||
+          freshEntry.cust_name ||
+          freshEntry.comp_name;
+        const freshInvoice =
+          freshEntry.vendor_invoice ||
+          freshEntry.cust_invoice ||
+          freshEntry.comp_invoice;
+
         if (
           !freshEntry ||
           freshEntry.scheduled_req === "sent" ||
-          (
-            freshEntry.EndDay &&
+          (freshEntry.EndDay &&
             freshEntry.lastSentDate &&
-            freshEntry.lastSentDate === freshEntry.EndDay
-          )
+            freshEntry.lastSentDate === freshEntry.EndDay)
         )
           return;
 
         const endDayValid =
           !freshEntry.EndDay ||
           new Date().toISOString().split("T")[0] <=
-          freshEntry.EndDay.split("T")[0];
+            freshEntry.EndDay.split("T")[0];
         const iterationValid =
           !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is parsed to a number
 
-        if (!endDayValid || !iterationValid) {
+        if (!endDayValid && !iterationValid) {
           console.log(
-            `(${roleLabel} Cron) Skipped ${freshEntry.email} due to EndDay or Iteration limits`
+            `(${roleLabel} Cron) Skipped ${freshEntry.freshEmail} due to EndDay or Iteration limits`
           );
           return;
         }
 
         try {
           await sendEmail(
-            freshEntry.email,
-            freshEntry.name,
+            freshEmail,
+            freshName,
             roleLabel,
-            freshEntry.invoice,
+            freshInvoice,
             freshEntry,
             transporter,
             CollectionModel
           );
           console.log(
-            `(${roleLabel} Daily Scheduled) Email sent to ${freshEntry.email}`
-          );
-
+            `(${roleLabel} Daily Scheduled) Email sent to ${freshEmail}`
+          );  
+          console.log("Email to be sent :",freshEmail);
+          console.log("Name to be sent :",freshName);
           if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
             // Ensure Iteration is a valid positive number
             const newIteration = parseInt(freshEntry.Iteration) - 1; // Decrement Iteration as a number
@@ -244,7 +260,7 @@ const rescheduleForCollection = async (
           }
         } catch (err) {
           console.error(
-            `(${roleLabel} Cron) Failed to send email to ${freshEntry.email}:`,
+            `(${roleLabel} Cron) Failed to send email to ${freshEmail}:`,
             err
           );
         }
@@ -274,21 +290,24 @@ const rescheduleForCollection = async (
       const hasTimePassed =
         currentHour > hour || (currentHour === hour && currentMinute >= minute);
       const isEarlierDay = currentDay > scheduledDayNum;
-
+      
       const isEndDayValid =
-        EndDay && now.toISOString().split("T")[0] <= EndDay.split("T")[0];
+        EndDay && now.toISOString().split("T")[0] < EndDay.split("T")[0];
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
       const isNeverEnding = !EndDay && !Iteration;
 
       const shouldSendNow =
         scheduled_req === "pending" &&
         (isEarlierDay || (isToday && hasTimePassed)) &&
-        (isEndDayValid || isIterationValid || isNeverEnding || (!isEndDayValid && lastSentDate !== EndDay));
+        (isEndDayValid ||
+          isIterationValid ||
+          isNeverEnding ||
+          (!isEndDayValid && lastSentDate !== EndDay));
 
       const cronTime = `${minute} ${hour} * * ${scheduledDayNum}`;
 
       if (shouldSendNow) {
-        try {
+        try { 
           await sendEmail(
             email,
             name,
@@ -316,7 +335,12 @@ const rescheduleForCollection = async (
           } else if (EndDay) {
             await CollectionModel.updateOne(
               { _id: entry._id },
-              { $set: { scheduled_req: "sent", lastSentDate: new Date().toISOString().split("T")[0], } }
+              {
+                $set: {
+                  scheduled_req: "sent",
+                  lastSentDate: new Date().toISOString().split("T")[0],
+                },
+              }
             );
           } else {
             await CollectionModel.updateOne(
@@ -334,12 +358,17 @@ const rescheduleForCollection = async (
 
       cron.schedule(cronTime, async () => {
         const freshEntry = await CollectionModel.findById(entry._id);
-        if (!freshEntry || freshEntry.scheduled_req === "sent" || freshEntry.lastSentDate === EndDay  ) return;
+        if (
+          !freshEntry ||
+          freshEntry.scheduled_req === "sent" ||
+          freshEntry.lastSentDate === EndDay
+        )
+          return;
 
         const validEndDay =
           !freshEntry.EndDay ||
           new Date().toISOString().split("T")[0] <=
-          freshEntry.EndDay.split("T")[0];
+            freshEntry.EndDay.split("T")[0];
         const validIteration =
           !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is a number
 
@@ -406,12 +435,16 @@ const rescheduleForCollection = async (
       const isEarlierDay = currentDayOfMonth > scheduledDayNum;
 
       const isEndDayValid =
-        EndDay && now.toISOString().split("T")[0] <= EndDay.split;
+        EndDay && now.toISOString().split("T")[0] < EndDay.split;
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
-      const isNeverEnding =!EndDay && !Iteration;
+      const isNeverEnding = !EndDay && !Iteration;
       const shouldSendNow =
         scheduled_req === "pending" &&
-        (isEarlierDay || (isToday && hasTimePassed)) && (isNeverEnding || isEndDayValid || isIterationValid ||(!isEndDayValid && lastSentDate !== EndDay))
+        (isEarlierDay || (isToday && hasTimePassed)) &&
+        (isNeverEnding ||
+          isEndDayValid ||
+          isIterationValid ||
+          (!isEndDayValid && lastSentDate !== EndDay));
 
       if (shouldSendNow) {
         try {
@@ -460,7 +493,7 @@ const rescheduleForCollection = async (
         const validEndDay =
           !freshEntry.EndDay ||
           new Date().toISOString().split("T")[0] <=
-          freshEntry.EndDay.split("T")[0];
+            freshEntry.EndDay.split("T")[0];
         const validIteration =
           !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is a number
 
@@ -546,16 +579,18 @@ const rescheduleForCollection = async (
           from: "remorsivemate@gmail.com",
           to: email,
           subject: `📄 Invoice from ${name}`,
-          text: `Dear ${roleLabel === "Customer"
+          text: `Dear ${
+            roleLabel === "Customer"
               ? "Customer"
               : roleLabel === "Company"
-                ? "Company"
-                : "Vendor"
-            } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+              ? "Company"
+              : "Vendor"
+          } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
         };
 
         console.log(
-          `(${roleLabel}) Scheduled email to ${email} in ${delay / 1000
+          `(${roleLabel}) Scheduled email to ${email} in ${
+            delay / 1000
           } seconds`
         );
 

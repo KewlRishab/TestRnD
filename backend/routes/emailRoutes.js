@@ -199,7 +199,7 @@ router.post("/schedule-email", async (req, res) => {
       scheduledType: scheduleType,
       Iteration: Iteration === "" ? 0 : parseInt(Iteration, 10),
       EndDay, 
-      lastSentDate:""
+      lastSentDate:""  
     });
   };
 
