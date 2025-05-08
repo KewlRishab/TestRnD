@@ -1,19 +1,25 @@
 import "./App.scss";
+import "./components/EmailSchedule.scss"
 import VendorTable from "./components/VendorTable";
 import { useState } from "react";
 import axios from "axios";
 import CustTable from "./components/CustTable";
 import CompTable from "./components/CompTable";
-import EmailSchForm from "./components/EmailSchForm";
+
 
 function App() {
+  const [type, setType] = useState("Vendor");
   const [refreshTrigger, setRefreshTrigger] = useState("");
-
+  const [formData, setFormData] = useState({});
+  const [endAfterCount, setEndAfterCount] = useState(1);
+  const [endOnDate, setEndOnDate] = useState("");
+  const [endCondition, setEndCondition] = useState("never");
+  const [requestType, setRequestType] = useState("single");
   // Single (date + time)
-  const [scheduleDateTime, setScheduleDateTime] = useState("");
+  const [singleTime, setSingleTime] = useState("");
 
   // Daily (just time)
-  const [scheduledTime, setScheduledTime] = useState("");
+  const [dailyTime, setDailyTime] = useState("");
 
   // Weekly (time + weekday)
   const [weeklyTime, setWeeklyTime] = useState("");
@@ -21,28 +27,21 @@ function App() {
 
   // Monthly (time + date of the month)
   const [monthlyTime, setMonthlyTime] = useState("");
-  const [monthlyDay, setMonthlyDay] = useState(""); // 1 to 31
+  const [monthlyDay, setMonthlyDay] = useState("");
 
-  const handleValueChange = (time, selLabel) => {
-    console.log(selLabel, time);
-    switch (selLabel) {
-      case "onlyTime":
-        setScheduledTime(time);
-        break;
-      case "dateTime":
-        setScheduleDateTime(time);
-        break;
+  const handleValueChange = (value, field) => {
+    switch (field) {
       case "weeklyTime":
-        setWeeklyTime(time);
+        setWeeklyTime(value);
         break;
       case "weeklyDay":
-        setWeeklyDay(time);
+        setWeeklyDay(value);
         break;
       case "monthlyTime":
-        setMonthlyTime(time);
+        setMonthlyTime(value);
         break;
       case "monthlyDay":
-        setMonthlyDay(time);
+        setMonthlyDay(value);
         break;
       default:
         break;
@@ -50,44 +49,60 @@ function App() {
   };
 
   const handleSchedule = async () => {
-    if (!scheduledTime && !scheduleDateTime && !weeklyTime && !monthlyTime) {
-      alert("Please select a specific duration from the Date-Time or Time box before scheduling!");
-      return;
-    } else if (monthlyTime && !monthlyDay) {
-      alert("Please Select a day specified for Monthly scheduling!");
+    if (
+      (requestType === "single" && !singleTime) ||
+      (requestType === "daily" && !dailyTime) ||
+      (requestType === "weekly" && (!weeklyTime || !weeklyDay)) ||
+      (requestType === "monthly" && (!monthlyTime || !monthlyDay))
+    ) {
+      alert("Please fill all required scheduling fields!");
       return;
     }
-
+  
     try {
       const payload = {
+        userType:type,
         scheduleType: "",
         scheduleTime: "",
         scheduleDay: "",
+        EndDay: "",
+        Iteration: ""
       };
-
-      if (scheduleDateTime) {
+  
+      // Set schedule type and time/day
+      if (requestType === "single") {
         payload.scheduleType = "single";
-        payload.scheduleTime = scheduleDateTime;
-      } else if (scheduledTime) {
+        payload.scheduleTime = singleTime;
+      } else if (requestType === "daily") {
         payload.scheduleType = "daily";
-        payload.scheduleTime = scheduledTime;
-      } else if (weeklyTime) {
+        payload.scheduleTime = dailyTime;
+      } else if (requestType === "weekly") {
         payload.scheduleType = "weekly";
         payload.scheduleTime = weeklyTime;
-        payload.scheduleDay = weeklyDay; // Monday, Tuesday, etc.
-      } else if (monthlyTime) {
+        payload.scheduleDay = weeklyDay;
+      } else if (requestType === "monthly") {
         payload.scheduleType = "monthly";
         payload.scheduleTime = monthlyTime;
-        payload.scheduleDay = monthlyDay; // 1 to 31
+        payload.scheduleDay = monthlyDay;
+      }
+  
+      // Add EndDay and Iteration if not "single"
+      if (requestType !== "single") {
+        if (endCondition === "after") {
+          payload.Iteration = String(endAfterCount); // just the number, no prefix
+        } else if (endCondition === "on") {
+          payload.EndDay = endOnDate; // just the date string, no "D" prefix
+        }
       }
 
-      // return console.log(payload);
-
+    // return console.log(payload);
+  
+      // Send the payload
       const response = await axios.post(
         "http://localhost:8000/api/schedule-email",
         payload
       );
-
+  
       alert("Email scheduled successfully! ✅");
       console.log(response.data);
       setRefreshTrigger((prev) => !prev);
@@ -107,7 +122,7 @@ function App() {
       <div className="buttonHeading">
         Please select the date and time below to schedule An Email!
       </div>
-      <div className="inpCont">
+      {/* <div className="inpCont">
         <div className="timeInp">
           <label
             htmlFor="onlyTime"
@@ -198,8 +213,164 @@ function App() {
             onChange={(e) => handleValueChange(e.target.value, "monthlyDay")}
           />
         </div>
-        <EmailSchForm/>
+        <EmailSchForm onFormDataChange={setFormData} setRefreshTrigger="setRefreshTrigger"/>
         
+      </div> */}
+      <div className="InpCont">
+        <div className="firInp">
+          <label>Type:</label>
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="Vendor">Vendor</option>
+            <option value="Customer">Customer</option>
+            <option value="Company">Company</option>
+            <option value="All">All</option>
+          </select>
+        </div>
+        <div className="firInp">
+          <label>Request Type:</label>
+          <select
+            value={requestType}
+            onChange={(e) => setRequestType(e.target.value)}
+          >
+            <option value="single">Single</option>
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        {requestType === "single" && (
+          <div className="firInp">
+            <label>Select Single Time:</label>
+            <input
+              type="datetime-local"
+              value={singleTime}
+              onChange={(e) => setSingleTime(e.target.value)}
+            />
+          </div>
+        )}
+        {requestType === "daily" && (
+          <div className="firInp">
+            <label>Select Time:</label>
+            <input
+              type="time"
+              value={dailyTime}
+              onChange={(e) => setDailyTime(e.target.value)}
+            />
+          </div>
+        )}
+        {requestType === "weekly" && (
+          <div className="firInp">
+            <label>Select Weekly Time:</label>
+            <input
+              type="time"
+              id="weekTOnly"
+              className="normalInputStyle"
+              value={weeklyTime}
+              onChange={(e) => handleValueChange(e.target.value, "weeklyTime")}
+            />
+            <select
+              id="weekSOnly"
+              className="normalInputStyle"
+              value={weeklyDay}
+              onChange={(e) => handleValueChange(e.target.value, "weeklyDay")}
+            >
+              <option value="Monday">Mon</option>
+              <option value="Tuesday">Tue</option>
+              <option value="Wednesday">Wed</option>
+              <option value="Thursday">Thu</option>
+              <option value="Friday">Fri</option>
+              <option value="Saturday">Sat</option>
+              <option value="Sunday">Sun</option>
+            </select>
+          </div>
+        )}
+        {requestType === "monthly" && (
+          <div className="firInp">
+            <label
+              htmlFor="monthTOnly"
+              style={{ fontFamily: "sans-serif", fontWeight: "600" }}
+            >
+              Monthly Scheduling:
+            </label>
+            <input
+              type="time"
+              id="monthTOnly"
+              className="normalInputStyle"
+              value={monthlyTime}
+              onChange={(e) => handleValueChange(e.target.value, "monthlyTime")}
+            />
+            <input
+              type="number"
+              id="monthDOnly"
+              placeholder="dd"
+              className="normalInputStyle"
+              min="1"
+              max="31"
+              value={monthlyDay}
+              onInput={(e) => {
+                const value = parseInt(e.target.value);
+                if (value < 1) e.target.value = 1;
+                if (value > 31) e.target.value = 31;
+              }}
+              onChange={(e) => handleValueChange(e.target.value, "monthlyDay")}
+            />
+          </div>
+        )}
+        {requestType !== "single" ? (
+          <div className="endOptions">
+            <label>Ends</label>
+            <div className="endOptionRow">
+              <input
+                type="radio"
+                name="end"
+                value="never"
+                checked={endCondition === "never"}
+                onChange={() => setEndCondition("never")}
+              />
+              <span>Never</span>
+            </div>
+
+            <div className="endOptionRow">
+              <input
+                type="radio"
+                name="end"
+                value="after"
+                checked={endCondition === "after"}
+                onChange={() => setEndCondition("after")}
+              />
+              <span>After</span>
+              <input
+                type="number"
+                min="1"
+                value={endAfterCount}
+                onChange={(e) => setEndAfterCount(e.target.value)}
+                disabled={endCondition !== "after"}
+                className="endInput"
+              />
+              <span>times</span>
+            </div>
+
+            <div className="endOptionRow">
+              <input
+                type="radio"
+                name="end"
+                value="on"
+                checked={endCondition === "on"}
+                onChange={() => setEndCondition("on")}
+              />
+              <span>On</span>
+              <input
+                type="date"
+                value={endOnDate}
+                onChange={(e) => setEndOnDate(e.target.value)}
+                disabled={endCondition !== "on"}
+                className="endInput"
+              />
+            </div>
+          </div>
+        ) : (
+          <></>
+        )}
       </div>
       <button className="actionButton" onClick={handleSchedule}>
         Save Schedule!

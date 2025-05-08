@@ -33,15 +33,23 @@ const compSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
-    scheduledType:{
-      type:String,
-      default:null,
-      enum:["weekly","single","monthly","daily"]
+    scheduledType: {
+      type: String,
+      default: null,
+      enum: ["weekly", "single", "monthly", "daily"],
     },
-    scheduledDay:{
-      type:String,
-      default:null,
-    }
+    scheduledDay: {
+      type: String,
+      default: null,
+    },
+    EndDay: {
+      type: String,
+      default: null,
+    },
+    Iteration: {
+      type: String,
+      default: null,
+    },
     // lastSentData: {
     //   date: {
     //     type: String, // Stores the date as a string, e.g., "2025-04-24"
