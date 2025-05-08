@@ -23,7 +23,7 @@ const sendEmailAndUpdateIteration = async (
     let email, name, invoice, scheduled_req, _id, Iteration, EndDay;
 
     // Extract dynamic fields
-    if (user.vendor_email) {
+    if (user.vendor_email) { 
       ({
         vendor_email: email,
         vendor_name: name,
@@ -68,7 +68,7 @@ const sendEmailAndUpdateIteration = async (
     }
 
     // Skip if Iteration is 0 and no EndDay
-    if (Iteration === 0 && !EndDay) {
+    if (Iteration === "0" && !EndDay) {
       console.log(`Skipping ${email} — Iteration is 0 and no EndDay`);
       continue;
     }
@@ -197,7 +197,7 @@ router.post("/schedule-email", async (req, res) => {
   const updateUser = async (userType) => {
     await updateUserTypeData(userType, {
       scheduledType: scheduleType,
-      Iteration: Iteration === "" ? 0 : parseInt(Iteration, 10),
+      Iteration: Iteration,
       EndDay, 
       lastSentDate:""  
     });
@@ -272,8 +272,8 @@ router.post("/schedule-email", async (req, res) => {
     // Schedule a new job
     cronJobs[currDate] = cron.schedule(cronTime, async () => {
       try {
-        // Vendor emails
-        const vendorData = await VendorData.find();
+        // Vendor emails  
+        const vendorData = await VendorData.find(); 
         await sendEmailAndUpdateIteration(
           vendorData,
           transporter,
@@ -306,7 +306,7 @@ router.post("/schedule-email", async (req, res) => {
     res.status(200).json({
       message: `Emails scheduled to be sent at ${scheduleTime}`,
     });
-  } catch (err) {
+  } catch (err) {  
     console.error("Error scheduling email:", err);
     res.status(500).json({ message: "Error scheduling email" });
   }

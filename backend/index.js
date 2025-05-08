@@ -110,7 +110,7 @@ const rescheduleForCollection = async (
 
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is parsed to a number
 
-      const isNeverEnding = !EndDay && !Iteration;
+      const isNeverEnding = !EndDay && Iteration === "";
 
       const shouldSendNow =
         scheduled_req === "pending" &&
@@ -118,7 +118,7 @@ const rescheduleForCollection = async (
         (isNeverEnding ||
           isEndDayValid ||
           isIterationValid ||
-          (EndDay && !isEndDayValid && lastSentDate !== EndDay));
+          (EndDay && !isEndDayValid && lastSentDate !== EndDay));  
 
       const cronTime = `${scheduledMinute} ${scheduledHour} * * *`; // Every day at HH:mm
 
@@ -172,10 +172,18 @@ const rescheduleForCollection = async (
           );
         }
       }
-
+      const freshEntry = await CollectionModel.findById(entry._id);
+      if (
+        !freshEntry ||
+        freshEntry.scheduled_req === "sent" ||
+        (freshEntry.EndDay &&
+          freshEntry.lastSentDate &&
+          freshEntry.lastSentDate === freshEntry.EndDay) ||
+        freshEntry.Iteration === "0"
+      )
+        continue;
       // Always schedule the daily cron
       cron.schedule(cronTime, async () => {
-        const freshEntry = await CollectionModel.findById(entry._id);
         const freshEmail =
           freshEntry.vendor_email ||
           freshEntry.cust_email ||
@@ -188,15 +196,6 @@ const rescheduleForCollection = async (
           freshEntry.vendor_invoice ||
           freshEntry.cust_invoice ||
           freshEntry.comp_invoice;
-
-        if (
-          !freshEntry ||
-          freshEntry.scheduled_req === "sent" ||
-          (freshEntry.EndDay &&
-            freshEntry.lastSentDate &&
-            freshEntry.lastSentDate === freshEntry.EndDay)
-        )
-          return;
 
         const endDayValid =
           !freshEntry.EndDay ||
@@ -278,7 +277,7 @@ const rescheduleForCollection = async (
         Friday: 5,
         Saturday: 6,
       };
-      const scheduledDayNum = dayMap[scheduledDay]; // e.g. "Tuesday" -> 2
+      const scheduledDayNum = dayMap[scheduledDay]; // e.g. "Tuesday" -> 2 
 
       const [hourStr, minuteStr] = scheduledTime.split(":");
       const hour = parseInt(hourStr, 10);
@@ -292,7 +291,7 @@ const rescheduleForCollection = async (
       const isEndDayValid =
         EndDay && now.toISOString().split("T")[0] < EndDay.split("T")[0];
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
-      const isNeverEnding = !EndDay && !Iteration;
+      const isNeverEnding = !EndDay && Iteration === "";     
 
       const shouldSendNow =
         scheduled_req === "pending" &&
@@ -354,8 +353,17 @@ const rescheduleForCollection = async (
         }
       }
 
+      const freshEntry = await CollectionModel.findById(entry._id);
+      if (
+        !freshEntry ||
+        freshEntry.scheduled_req === "sent" ||
+        (freshEntry.EndDay &&
+          freshEntry.lastSentDate &&
+          freshEntry.lastSentDate === freshEntry.EndDay) ||
+        freshEntry.Iteration === "0"
+      )
+        continue;
       cron.schedule(cronTime, async () => {
-        const freshEntry = await CollectionModel.findById(entry._id);
         const freshEmail =
           freshEntry.vendor_email ||
           freshEntry.cust_email ||
@@ -368,12 +376,6 @@ const rescheduleForCollection = async (
           freshEntry.vendor_invoice ||
           freshEntry.cust_invoice ||
           freshEntry.comp_invoice;
-        if (
-          !freshEntry ||
-          freshEntry.scheduled_req === "sent" ||
-          freshEntry.lastSentDate === EndDay
-        )
-          return;
 
         const validEndDay =
           !freshEntry.EndDay ||
@@ -408,7 +410,6 @@ const rescheduleForCollection = async (
             await CollectionModel.updateOne(
               { _id: freshEntry._id },
               {
-                $set: { scheduled_req: "sent" },
                 Iteration: newIteration.toString(), // Store back as string
               }
             );
@@ -447,7 +448,7 @@ const rescheduleForCollection = async (
       const isEndDayValid =
         EndDay && now.toISOString().split("T")[0] < EndDay.split;
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
-      const isNeverEnding = !EndDay && !Iteration;
+      const isNeverEnding = !EndDay && Iteration === "";
       const shouldSendNow =
         scheduled_req === "pending" &&
         (isEarlierDay || (isToday && hasTimePassed)) &&
@@ -506,8 +507,18 @@ const rescheduleForCollection = async (
         }
       }
 
+      const freshEntry = await CollectionModel.findById(entry._id);
+      if (
+        !freshEntry ||
+        freshEntry.scheduled_req === "sent" ||
+        (freshEntry.EndDay &&
+          freshEntry.lastSentDate &&
+          freshEntry.lastSentDate === freshEntry.EndDay) ||
+        freshEntry.Iteration === "0"
+      )
+        continue;
       cron.schedule(cronTime, async () => {
-        const freshEntry = await CollectionModel.findById(entry._id);
+        // console.log(cronTime);
         const freshEmail =
           freshEntry.vendor_email ||
           freshEntry.cust_email ||
@@ -520,7 +531,6 @@ const rescheduleForCollection = async (
           freshEntry.vendor_invoice ||
           freshEntry.cust_invoice ||
           freshEntry.comp_invoice;
-        if (!freshEntry || freshEntry.scheduled_req === "sent") return;
 
         const validEndDay =
           !freshEntry.EndDay ||
