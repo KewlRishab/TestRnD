@@ -118,7 +118,7 @@ const rescheduleForCollection = async (
         (isNeverEnding ||
           isEndDayValid ||
           isIterationValid ||
-          (EndDay && !isEndDayValid && lastSentDate !== EndDay));  
+          (EndDay && !isEndDayValid && lastSentDate !== EndDay));
 
       const cronTime = `${scheduledMinute} ${scheduledHour} * * *`; // Every day at HH:mm
 
@@ -277,7 +277,7 @@ const rescheduleForCollection = async (
         Friday: 5,
         Saturday: 6,
       };
-      const scheduledDayNum = dayMap[scheduledDay]; // e.g. "Tuesday" -> 2 
+      const scheduledDayNum = dayMap[scheduledDay]; // e.g. "Tuesday" -> 2
 
       const [hourStr, minuteStr] = scheduledTime.split(":");
       const hour = parseInt(hourStr, 10);
@@ -291,7 +291,7 @@ const rescheduleForCollection = async (
       const isEndDayValid =
         EndDay && now.toISOString().split("T")[0] < EndDay.split("T")[0];
       const isIterationValid = Iteration && parseInt(Iteration, 10) > 0; // Ensure Iteration is a number
-      const isNeverEnding = !EndDay && Iteration === "";     
+      const isNeverEnding = !EndDay && Iteration === "";
 
       const shouldSendNow =
         scheduled_req === "pending" &&
@@ -504,7 +504,7 @@ const rescheduleForCollection = async (
             `(${roleLabel} Recovery) Failed to send missed monthly email to ${email}:`,
             err
           );
-        }
+        } 
       }
 
       const freshEntry = await CollectionModel.findById(entry._id);

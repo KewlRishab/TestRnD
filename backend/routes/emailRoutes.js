@@ -23,7 +23,7 @@ const sendEmailAndUpdateIteration = async (
     let email, name, invoice, scheduled_req, _id, Iteration, EndDay;
 
     // Extract dynamic fields
-    if (user.vendor_email) { 
+    if (user.vendor_email) {
       ({
         vendor_email: email,
         vendor_name: name,
@@ -32,7 +32,7 @@ const sendEmailAndUpdateIteration = async (
         _id,
         Iteration,
         EndDay,
-        lastSentDate
+        lastSentDate,
       } = user);
     } else if (user.cust_email) {
       ({
@@ -43,7 +43,7 @@ const sendEmailAndUpdateIteration = async (
         _id,
         Iteration,
         EndDay,
-        lastSentDate
+        lastSentDate,
       } = user);
     } else if (user.comp_email) {
       ({
@@ -54,7 +54,7 @@ const sendEmailAndUpdateIteration = async (
         _id,
         Iteration,
         EndDay,
-        lastSentDate
+        lastSentDate,
       } = user);
     } else {
       console.warn("Skipping unknown user type:", user);
@@ -101,7 +101,15 @@ const sendEmailAndUpdateIteration = async (
         console.log(`Iteration decremented for ${email}`);
       }
       else if(EndDay){
-        await Model.updateOne({ _id }, { $set: { scheduled_req: "sent", lastSentDate:new Date().toISOString().split("T")[0] } });
+        await Model.updateOne(
+          { _id },
+          {
+            $set: {
+              scheduled_req: "sent",
+              lastSentDate: new Date().toISOString().split("T")[0],
+            },
+          }
+        );
         console.log(`Marked as sent EndDay-based schedule`);
       }
        else {
