@@ -88,19 +88,20 @@ const sendEmailAndUpdateIteration = async (
       console.log(`✅ Email sent to ${email}`);
 
       // Only then update the DB
-      if (Iteration && Iteration > 0) {
+      const numericIteration = parseInt(Iteration, 10); // safely parses strings like "0", "1", or even "01"
+
+      if (!isNaN(numericIteration) && numericIteration > 0) {
         await Model.updateOne(
           { _id },
           {
             $set: {
               scheduled_req: "sent",
-              Iteration: Iteration - 1,
+              Iteration: (numericIteration - 1).toString(), // store as string again
             },
           }
         );
         console.log(`Iteration decremented for ${email}`);
-      }
-      else if(EndDay){
+      } else if (EndDay) {
         await Model.updateOne(
           { _id },
           {
@@ -111,8 +112,7 @@ const sendEmailAndUpdateIteration = async (
           }
         );
         console.log(`Marked as sent EndDay-based schedule`);
-      }
-       else {
+      } else {
         await Model.updateOne({ _id }, { $set: { scheduled_req: "sent" } });
         console.log(`Marked as sent for one-time or never ending `);
       }
@@ -206,8 +206,8 @@ router.post("/schedule-email", async (req, res) => {
     await updateUserTypeData(userType, {
       scheduledType: scheduleType,
       Iteration: Iteration,
-      EndDay, 
-      lastSentDate:""  
+      EndDay,
+      lastSentDate: "",
     });
   };
 
@@ -280,8 +280,8 @@ router.post("/schedule-email", async (req, res) => {
     // Schedule a new job
     cronJobs[currDate] = cron.schedule(cronTime, async () => {
       try {
-        // Vendor emails  
-        const vendorData = await VendorData.find(); 
+        // Vendor emails
+        const vendorData = await VendorData.find();
         await sendEmailAndUpdateIteration(
           vendorData,
           transporter,
@@ -314,7 +314,7 @@ router.post("/schedule-email", async (req, res) => {
     res.status(200).json({
       message: `Emails scheduled to be sent at ${scheduleTime}`,
     });
-  } catch (err) {  
+  } catch (err) {
     console.error("Error scheduling email:", err);
     res.status(500).json({ message: "Error scheduling email" });
   }
