@@ -12,7 +12,7 @@ async function handleScheduledSend({
     freshEntry.comp_email;
   const freshName =
     freshEntry.vendor_name ||
-    freshEntry.cust_name ||
+    freshEntry.cust_name || 
     freshEntry.comp_name;
   const freshInvoice =
     freshEntry.vendor_invoice ||
