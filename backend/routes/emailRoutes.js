@@ -11,7 +11,7 @@ const router = express.Router();
 
 const cronJobs = {};
 
-const sendEmailAndUpdateIteration = async (
+const sendEmailAndUpdateAccordingly = async (
   userData,
   transporter,
   userType,
@@ -282,7 +282,7 @@ router.post("/schedule-email", async (req, res) => {
       try {
         // Vendor emails
         const vendorData = await VendorData.find();
-        await sendEmailAndUpdateIteration(
+        await sendEmailAndUpdateAccordingly(
           vendorData,
           transporter,
           "Vendor",
@@ -291,7 +291,7 @@ router.post("/schedule-email", async (req, res) => {
 
         // Customer emails
         const custData = await CustData.find();
-        await sendEmailAndUpdateIteration(
+        await sendEmailAndUpdateAccordingly(
           custData,
           transporter,
           "Customer",
@@ -300,7 +300,7 @@ router.post("/schedule-email", async (req, res) => {
 
         // Company emails
         const compData = await CompData.find();
-        await sendEmailAndUpdateIteration(
+        await sendEmailAndUpdateAccordingly(
           compData,
           transporter,
           "Company",

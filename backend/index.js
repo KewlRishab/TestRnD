@@ -22,7 +22,7 @@ const handleScheduledSend = require("./utils/cronSchedule");
 app.use(express.json());
 
 app.use(
-  cors({
+  cors({   
     origin: "http://localhost:5173",
   })
 );
