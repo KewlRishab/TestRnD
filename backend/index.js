@@ -16,6 +16,8 @@ const customerRoutes = require("./routes/customerRoutes");
 const emailRoutes = require("./routes/emailRoutes");
 const compRoutes = require("./routes/compRoutes");
 const sendEmail = require("./utils/sendEmail");
+const sendImmediately = require("./utils/sendImmediately");
+const handleScheduledSend = require("./utils/cronSchedule");
 
 app.use(express.json());
 
@@ -123,54 +125,7 @@ const rescheduleForCollection = async (
       const cronTime = `${scheduledMinute} ${scheduledHour} * * *`; // Every day at HH:mm
 
       if (shouldSendNow) {
-        try {
-          await sendEmail(
-            email,
-            name,
-            roleLabel,
-            invoice,
-            entry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Recovery) Missed daily email sent to ${email}`
-          );
-          if (Iteration && parseInt(Iteration, 10) > 0) {
-            // Check if Iteration is a valid positive number
-            const newIteration = parseInt(Iteration, 10) - 1; // Decrement the iteration as a number
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                // $inc: { Iteration: -1 }, // Decrementing by 1
-                $set: {
-                  scheduled_req: "sent",
-                  Iteration: newIteration.toString(), // Store as string back to database
-                },
-              }
-            );
-          } else if (EndDay) {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  lastSentDate: new Date().toISOString().split("T")[0],
-                },
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Recovery) Failed to send missed daily email to ${email}:`,
-            err
-          );
-        }
+        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
       }
       const freshEntry = await CollectionModel.findById(entry._id);
       if (
@@ -184,83 +139,7 @@ const rescheduleForCollection = async (
         continue;
       // Always schedule the daily cron
       cron.schedule(cronTime, async () => {
-        const freshEmail =
-          freshEntry.vendor_email ||
-          freshEntry.cust_email ||
-          freshEntry.comp_email;
-        const freshName =
-          freshEntry.vendor_name ||
-          freshEntry.cust_name ||
-          freshEntry.comp_name;
-        const freshInvoice =
-          freshEntry.vendor_invoice ||
-          freshEntry.cust_invoice ||
-          freshEntry.comp_invoice;
-
-        const endDayValid =
-          !freshEntry.EndDay ||
-          new Date().toISOString().split("T")[0] <=
-            freshEntry.EndDay.split("T")[0];
-        const iterationValid =
-          !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is parsed to a number
-
-        if (!endDayValid && !iterationValid) {
-          console.log(
-            `(${roleLabel} Cron) Skipped ${freshEntry.freshEmail} due to EndDay or Iteration limits`
-          );
-          return;
-        }
-
-        try {
-          await sendEmail(
-            freshEmail,
-            freshName,
-            roleLabel,
-            freshInvoice,
-            freshEntry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Daily Scheduled) Email sent to ${freshEmail}`
-          );
-          console.log("Email to be sent :", freshEmail);
-          console.log("Name to be sent :", freshName);
-          if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
-            // Ensure Iteration is a valid positive number
-            const newIteration = parseInt(freshEntry.Iteration) - 1; // Decrement Iteration as a number
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              {
-                // $inc: { Iteration: -1 }, // Decrementing by 1
-                $set: {
-                  scheduled_req: "sent",
-                  Iteration: newIteration.toString(), // Store back as string
-                },
-              }
-            );
-          } else if (EndDay) {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  lastSentDate: new Date().toISOString().split("T")[0],
-                },
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Cron) Failed to send email to ${freshEmail}:`,
-            err
-          );
-        }
+        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
       });
     } else if (scheduledType === "weekly") {
       const now = new Date();
@@ -304,53 +183,7 @@ const rescheduleForCollection = async (
       const cronTime = `${minute} ${hour} * * ${scheduledDayNum}`;
 
       if (shouldSendNow) {
-        try {
-          await sendEmail(
-            email,
-            name,
-            roleLabel,
-            invoice,
-            entry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Recovery) Missed weekly email sent to ${email}`
-          );
-          if (Iteration && parseInt(Iteration, 10) > 0) {
-            // Ensure Iteration is a valid number
-            const newIteration = parseInt(Iteration, 10) - 1; // Decrement Iteration as a number
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  Iteration: newIteration.toString(), // Store back as string
-                },
-              }
-            );
-          } else if (EndDay) {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  lastSentDate: new Date().toISOString().split("T")[0],
-                },
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Recovery) Failed to send missed weekly email to ${email}:`,
-            err
-          );
-        }
+        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
       }
 
       const freshEntry = await CollectionModel.findById(entry._id);
@@ -364,67 +197,7 @@ const rescheduleForCollection = async (
       )
         continue;
       cron.schedule(cronTime, async () => {
-        const freshEmail =
-          freshEntry.vendor_email ||
-          freshEntry.cust_email ||
-          freshEntry.comp_email;
-        const freshName =
-          freshEntry.vendor_name ||
-          freshEntry.cust_name ||
-          freshEntry.comp_name;
-        const freshInvoice =
-          freshEntry.vendor_invoice ||
-          freshEntry.cust_invoice ||
-          freshEntry.comp_invoice;
-
-        const validEndDay =
-          !freshEntry.EndDay ||
-          new Date().toISOString().split("T")[0] <=
-            freshEntry.EndDay.split("T")[0];
-        const validIteration =
-          !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is a number
-
-        if (!validEndDay || !validIteration) {
-          console.log(
-            `(${roleLabel} Cron) Skipped ${freshEmail} due to EndDay or Iteration limits`
-          );
-          return;
-        }
-
-        try {
-          await sendEmail(
-            freshEmail,
-            freshName,
-            roleLabel,
-            freshInvoice,
-            freshEntry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Weekly Scheduled) Email sent to ${freshEmail}`
-          );
-          if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
-            const newIteration = parseInt(freshEntry.Iteration) - 1;
-            // Ensure Iteration is a valid number
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              {
-                Iteration: newIteration.toString(), // Store back as string
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Weekly Scheduled) Failed to send email to ${freshEmail}:`,
-            err
-          );
-        }
+        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
       });
     } else if (scheduledType === "monthly") {
       const now = new Date();
@@ -458,53 +231,7 @@ const rescheduleForCollection = async (
           (EndDay && !isEndDayValid && lastSentDate !== EndDay));
 
       if (shouldSendNow) {
-        try {
-          await sendEmail(
-            email,
-            name,
-            roleLabel,
-            invoice,
-            entry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Recovery) Missed monthly email sent to ${email}`
-          );
-          if (Iteration && parseInt(Iteration, 10) > 0) {
-            const newIteration = parseInt(Iteration, 10) - 1;
-            // Ensure Iteration is a valid number
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  Iteration: newIteration.toString(),
-                },
-              }
-            );
-          } else if (EndDay) {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  lastSentDate: new Date().toISOString().split("T")[0],
-                },
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: entry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Recovery) Failed to send missed monthly email to ${email}:`,
-            err
-          );
-        } 
+        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
       }
 
       const freshEntry = await CollectionModel.findById(entry._id);
@@ -518,71 +245,7 @@ const rescheduleForCollection = async (
       )
         continue;
       cron.schedule(cronTime, async () => {
-        // console.log(cronTime);
-        const freshEmail =
-          freshEntry.vendor_email ||
-          freshEntry.cust_email ||
-          freshEntry.comp_email;
-        const freshName =
-          freshEntry.vendor_name ||
-          freshEntry.cust_name ||
-          freshEntry.comp_name;
-        const freshInvoice =
-          freshEntry.vendor_invoice ||
-          freshEntry.cust_invoice ||
-          freshEntry.comp_invoice;
-
-        const validEndDay =
-          !freshEntry.EndDay ||
-          new Date().toISOString().split("T")[0] <=
-            freshEntry.EndDay.split("T")[0];
-        const validIteration =
-          !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0; // Ensure Iteration is a number
-
-        if (!validEndDay || !validIteration) {
-          console.log(
-            `(${roleLabel} Cron) Skipped ${freshEmail} due to EndDay or Iteration limits`
-          );
-          return;
-        }
-
-        try {
-          await sendEmail(
-            freshEmail,
-            freshName,
-            roleLabel,
-            freshInvoice,
-            freshEntry,
-            transporter,
-            CollectionModel
-          );
-          console.log(
-            `(${roleLabel} Monthly Scheduled) Email sent to ${freshEmail}`
-          );
-          if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
-            const newIteration = parseInt(freshEntry.Iteration) - 1;
-            // Ensure Iteration is a valid number
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              {
-                $set: {
-                  scheduled_req: "sent",
-                  Iteration: newIteration.toString(),
-                },
-              }
-            );
-          } else {
-            await CollectionModel.updateOne(
-              { _id: freshEntry._id },
-              { $set: { scheduled_req: "sent" } }
-            );
-          }
-        } catch (err) {
-          console.error(
-            `(${roleLabel} Monthly Scheduled) Failed to send email to ${freshEmail}:`,
-            err
-          );
-        }
+        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
       });
     } else {
       const scheduleDate = new Date(scheduledTime);
@@ -621,18 +284,16 @@ const rescheduleForCollection = async (
           from: "remorsivemate@gmail.com",
           to: email,
           subject: `📄 Invoice from ${name}`,
-          text: `Dear ${
-            roleLabel === "Customer"
-              ? "Customer"
-              : roleLabel === "Company"
+          text: `Dear ${roleLabel === "Customer"
+            ? "Customer"
+            : roleLabel === "Company"
               ? "Company"
               : "Vendor"
-          } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
+            } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
         };
 
         console.log(
-          `(${roleLabel}) Scheduled email to ${email} in ${
-            delay / 1000
+          `(${roleLabel}) Scheduled email to ${email} in ${delay / 1000
           } seconds`
         );
 
