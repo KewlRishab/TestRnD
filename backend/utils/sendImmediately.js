@@ -1,24 +1,28 @@
+const { loginAPI } = require("../API/loginAPI");
+const { sendTxtMsg } = require("../API/sendTxtMsg");
+
 async function sendImmediately({
   entry,
-  email,
+  phoneNo,
   name,
   roleLabel,
   invoice,
-  transporter,
   CollectionModel,
-  sendEmail,
 }) {
   try {
-    await sendEmail(
-      email,
-      name,
-      roleLabel,
-      invoice,
-      entry,
-      transporter,
-      CollectionModel
-    );
-    console.log(`(${roleLabel} Recovery) Missed daily email sent to ${email}`);
+    const loginRes = await loginAPI(); // returns the object you just showed
+    console.log("loginRes's id :", loginRes.iid);
+    if (!loginRes || !loginRes.token || !loginRes.iid) {
+      throw new Error("Failed to get auth token or instance ID");
+    }
+
+    const { token, iid, apikey } = loginRes;
+
+    // Step 2: Send WhatsApp message
+    const msgResponse = await sendTxtMsg(iid, phoneNo, apikey, token);
+    if (!msgResponse) throw new Error("Failed to send WhatsApp message");
+
+    console.log(`WhatsApp message sent to ${phoneNo}`);
 
     const { Iteration, EndDay } = entry;
 
@@ -51,7 +55,7 @@ async function sendImmediately({
     }
   } catch (err) {
     console.error(
-      `(${roleLabel} Recovery) Failed to send missed daily email to ${email}:`,
+      `(${roleLabel} Recovery) Failed to send missed daily message to ${phoneNo}:`,
       err
     );
   }

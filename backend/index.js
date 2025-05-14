@@ -16,19 +16,22 @@ const customerRoutes = require("./routes/customerRoutes");
 const emailRoutes = require("./routes/emailRoutes");
 const compRoutes = require("./routes/compRoutes");
 const sendEmail = require("./utils/sendEmail");
+const btnClick = require("./routes/btnClick")
 const sendImmediately = require("./utils/sendImmediately");
 const handleScheduledSend = require("./utils/cronSchedule");
+const { loginAPI } = require("./API/loginAPI");
 
 app.use(express.json());
 
 app.use(
-  cors({   
+  cors({
     origin: "http://localhost:5173",
   })
 );
 
 connectDB().then(async () => {
-  await rescheduleEmailsOnStartup(); // Await this to ensure it's done before server is considered ready
+  await rescheduleEmailsOnStartup();  // Await this to ensure it's done before server is considered ready
+  // loginAPI();
 });
 
 app.get("/", async (req, res) => {
@@ -46,6 +49,9 @@ app.use("/api", compRoutes);
 
 // API to schedule and send email to all vendors at a specific time
 app.use("/api", emailRoutes);
+
+//API to Test the WhatsApp message send
+// app.use("/api", btnClick);
 
 async function rescheduleEmailsOnStartup() {
   try {
@@ -71,14 +77,17 @@ const rescheduleForCollection = async (
       scheduledTime,
       scheduled_req,
       vendor_name,
-      vendor_email,
+      // vendor_email,
       vendor_invoice,
+      vendor_phoneNo,
       cust_name,
-      cust_email,
+      // cust_email,
       cust_invoice,
+      cust_phoneNo,
       comp_name,
-      comp_email,
+      // comp_email,
       comp_invoice,
+      comp_phoneNo,
       EndDay,
       Iteration,
       lastSentDate,
@@ -92,8 +101,9 @@ const rescheduleForCollection = async (
     }
 
     const name = vendor_name || cust_name || comp_name;
-    const email = vendor_email || cust_email || comp_email;
+    // const email = vendor_email || cust_email || comp_email;
     const invoice = vendor_invoice || cust_invoice || comp_invoice;
+    const phoneNo = vendor_phoneNo || cust_phoneNo || comp_phoneNo;
 
     if (scheduledType === "daily") {
       const currentHour = now.getHours();
@@ -125,7 +135,7 @@ const rescheduleForCollection = async (
       const cronTime = `${scheduledMinute} ${scheduledHour} * * *`; // Every day at HH:mm
 
       if (shouldSendNow) {
-        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
+        await sendImmediately({ entry, phoneNo, name, roleLabel, invoice, CollectionModel });
       }
       const freshEntry = await CollectionModel.findById(entry._id);
       if (
@@ -139,7 +149,7 @@ const rescheduleForCollection = async (
         continue;
       // Always schedule the daily cron
       cron.schedule(cronTime, async () => {
-        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
+        await handleScheduledSend({ freshEntry, roleLabel, CollectionModel });
       });
     } else if (scheduledType === "weekly") {
       const now = new Date();
@@ -183,7 +193,7 @@ const rescheduleForCollection = async (
       const cronTime = `${minute} ${hour} * * ${scheduledDayNum}`;
 
       if (shouldSendNow) {
-        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
+        await sendImmediately({ entry, phoneNo, name, roleLabel, invoice, CollectionModel });
       }
 
       const freshEntry = await CollectionModel.findById(entry._id);
@@ -197,7 +207,7 @@ const rescheduleForCollection = async (
       )
         continue;
       cron.schedule(cronTime, async () => {
-        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
+        await handleScheduledSend({ freshEntry, roleLabel, CollectionModel });
       });
     } else if (scheduledType === "monthly") {
       const now = new Date();
@@ -231,7 +241,7 @@ const rescheduleForCollection = async (
           (EndDay && !isEndDayValid && lastSentDate !== EndDay));
 
       if (shouldSendNow) {
-        await sendImmediately({ entry, email, name, roleLabel, invoice, transporter, CollectionModel, sendEmail, });
+        await sendImmediately({ entry, phoneNo, name, roleLabel, invoice, CollectionModel });
       }
 
       const freshEntry = await CollectionModel.findById(entry._id);
@@ -245,9 +255,10 @@ const rescheduleForCollection = async (
       )
         continue;
       cron.schedule(cronTime, async () => {
-        await handleScheduledSend({ freshEntry, roleLabel, transporter, CollectionModel, sendEmail });
+         await handleScheduledSend({ freshEntry, roleLabel, CollectionModel });
       });
-    } else {
+    } 
+    else {
       const scheduleDate = new Date(scheduledTime);
 
       if (isNaN(scheduleDate)) {
@@ -257,19 +268,15 @@ const rescheduleForCollection = async (
 
       if (scheduleDate <= now && scheduled_req === "pending") {
         try {
-          await sendEmail(
-            email,
-            name,
-            roleLabel,
-            invoice,
-            entry,
-            transporter,
-            CollectionModel
+          await sendImmediately({ entry, phoneNo, name, roleLabel, invoice, CollectionModel });
+          console.log(`(${roleLabel} Missed) Message sent to ${phoneNo}`);
+          await CollectionModel.updateOne(
+            { _id: entry._id },
+            { $set: { scheduled_req: "sent" } }
           );
-          console.log(`(${roleLabel} Missed) Email sent to ${email}`);
         } catch (err) {
           console.error(
-            `(${roleLabel} Missed) Failed to send email to ${email}:`,
+            `(${roleLabel} Missed) Failed to send message to ${phoneNo}:`,
             err
           );
           await CollectionModel.updateOne(
@@ -280,21 +287,8 @@ const rescheduleForCollection = async (
       } else if (scheduleDate > now && scheduled_req === "pending") {
         const delay = scheduleDate.getTime() - now.getTime();
 
-        const mailOptions = {
-          from: "remorsivemate@gmail.com",
-          to: email,
-          subject: `📄 Invoice from ${name}`,
-          text: `Dear ${roleLabel === "Customer"
-            ? "Customer"
-            : roleLabel === "Company"
-              ? "Company"
-              : "Vendor"
-            } ${name},\n\nPlease find your invoice PDF file at the following link: ${invoice}\n\nBest regards,\nXYZ Company`,
-        };
-
         console.log(
-          `(${roleLabel}) Scheduled email to ${email} in ${delay / 1000
-          } seconds`
+          `(${roleLabel}) Scheduled message to ${phoneNo} in ${delay / 1000} seconds`
         );
 
         setTimeout(async () => {
@@ -303,22 +297,22 @@ const rescheduleForCollection = async (
             const freshEntry = await CollectionModel.findById(entry._id);
             if (!freshEntry || freshEntry.scheduled_req === "sent") return;
 
-            await transporter.sendMail(mailOptions);
-            console.log(`(${roleLabel}) Email sent to ${email}`);
+            sendImmediately({ entry, phoneNo, name, roleLabel, invoice, CollectionModel })
+            console.log(`(${roleLabel}) Message sent to ${phoneNo}`);
             await CollectionModel.updateOne(
               { _id: entry._id },
               { $set: { scheduled_req: "sent" } }
-            );
+            ); 
           } catch (err) {
             console.error(
-              `(${roleLabel}) Failed to send scheduled email to ${email}:`,
+              `(${roleLabel}) Failed to send scheduled message to ${phoneNo}:`,
               err
             );
           }
         }, delay);
-      }
-    }
-  }
+      } 
+    } 
+  } 
 };
 
 app.listen(PORT, (err) => {

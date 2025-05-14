@@ -1,18 +1,19 @@
+const { loginAPI } = require("../API/loginAPI");
+const { sendTxtMsg } = require("../API/sendTxtMsg");
+
 // utils/handleScheduledSend.js
 async function handleScheduledSend({
   freshEntry,
   roleLabel,
-  transporter,
   CollectionModel,
-  sendEmail,
 }) {
-  const freshEmail =
-    freshEntry.vendor_email ||
-    freshEntry.cust_email ||
-    freshEntry.comp_email;
+  const freshPhoneNo =
+    freshEntry.vendor_phoneNo ||
+    freshEntry.cust_phoneNo || 
+    freshEntry.comp_phoneNo;
   const freshName =
     freshEntry.vendor_name ||
-    freshEntry.cust_name || 
+    freshEntry.cust_name ||
     freshEntry.comp_name;
   const freshInvoice =
     freshEntry.vendor_invoice ||
@@ -22,28 +23,31 @@ async function handleScheduledSend({
   const validEndDay =
     !freshEntry.EndDay ||
     new Date().toISOString().split("T")[0] <=
-      freshEntry.EndDay.split("T")[0];
+    freshEntry.EndDay.split("T")[0];
   const validIteration =
     !freshEntry.Iteration || parseInt(freshEntry.Iteration) > 0;
 
   if (!validEndDay || !validIteration) {
     console.log(
-      `(${roleLabel} Cron) Skipped ${freshEmail} due to EndDay or Iteration limits`
+      `(${roleLabel} Cron) Skipped ${freshPhoneNo} due to EndDay or Iteration limits`
     );
     return;
   }
 
   try {
-    await sendEmail(
-      freshEmail,
-      freshName,
-      roleLabel,
-      freshInvoice,
-      freshEntry,
-      transporter,
-      CollectionModel
-    );
-    console.log(`(${roleLabel} Cron) Email sent to ${freshEmail}`);
+    const loginRes = await loginAPI(); // returns the object you just showed
+    console.log("loginRes's id :", loginRes.iid);
+    if (!loginRes || !loginRes.token || !loginRes.iid) {
+      throw new Error("Failed to get auth token or instance ID");
+    } 
+
+    const { token, iid, apikey } = loginRes;
+
+    // Step 2: Send WhatsApp message
+    const msgResponse = await sendTxtMsg(iid, phoneNo, apikey, token);
+    if (!msgResponse) throw new Error("Failed to send WhatsApp message");
+
+    console.log(`WhatsApp message sent to ${phoneNo}`);
 
     if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
       const newIteration = parseInt(freshEntry.Iteration) - 1;
@@ -64,7 +68,7 @@ async function handleScheduledSend({
     }
   } catch (err) {
     console.error(
-      `(${roleLabel} Cron) Failed to send email to ${freshEmail}:`,
+      `(${roleLabel} Cron) Failed to send message to ${freshPhoneNo}:`,
       err
     );
   }

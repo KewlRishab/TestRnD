@@ -1,5 +1,5 @@
 import "./App.scss";
-import "./components/EmailSchedule.scss"
+import "./components/EmailSchedule.scss";
 import VendorTable from "./components/VendorTable";
 import { useState } from "react";
 import axios from "axios";
@@ -10,7 +10,7 @@ import CompTable from "./components/CompTable";
 function App() {
   const [type, setType] = useState("Vendor");
   const [refreshTrigger, setRefreshTrigger] = useState("");
-  const [formData, setFormData] = useState({});
+  // const [formData, setFormData] = useState({});
   const [endAfterCount, setEndAfterCount] = useState(1);
   const [endOnDate, setEndOnDate] = useState("");
   const [endCondition, setEndCondition] = useState("never");
@@ -48,6 +48,20 @@ function App() {
     }
   };
 
+  // const handleSendMessage = async () => {
+  //   try {
+  //     const response = await axios.post(
+  //       "http://localhost:8000/api/sendMessage"
+  //     );
+  //     alert("Email scheduled successfully! ✅");
+  //     console.log(response.data);
+  //     setRefreshTrigger((prev) => !prev);
+  //   } catch (error) {
+  //     console.error("Error scheduling email:", error);
+  //     alert("Failed to schedule email.");
+  //   }
+  // };
+
   const handleSchedule = async () => {
     if (
       (requestType === "single" && !singleTime) ||
@@ -58,17 +72,17 @@ function App() {
       alert("Please fill all required scheduling fields!");
       return;
     }
-  
+
     try {
       const payload = {
-        userType:type,
+        userType: type,
         scheduleType: "",
         scheduleTime: "",
         scheduleDay: "",
         EndDay: "",
-        Iteration: ""
+        Iteration: "",
       };
-  
+
       // Set schedule type and time/day
       if (requestType === "single") {
         payload.scheduleType = "single";
@@ -85,7 +99,7 @@ function App() {
         payload.scheduleTime = monthlyTime;
         payload.scheduleDay = monthlyDay;
       }
-  
+
       // Add EndDay and Iteration if not "single"
       if (requestType !== "single") {
         if (endCondition === "after") {
@@ -95,14 +109,14 @@ function App() {
         }
       }
 
-    // return console.log(payload);
-  
+      // return console.log(payload);
+
       // Send the payload
       const response = await axios.post(
         "http://localhost:8000/api/schedule-email",
         payload
       );
-  
+
       alert("Email scheduled successfully! ✅");
       console.log(response.data);
       setRefreshTrigger((prev) => !prev);
@@ -375,6 +389,9 @@ function App() {
       <button className="actionButton" onClick={handleSchedule}>
         Save Schedule!
       </button>
+      {/* <button className="actionButton" onClick={handleSendMessage}>
+        Send WhatsApp message!
+      </button> */}
     </div>
   );
 }

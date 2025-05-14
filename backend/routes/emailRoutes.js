@@ -6,6 +6,8 @@ const CustData = require("../models/CustomerData");
 const CompData = require("../models/CompanyData");
 const { updateUserTypeData } = require("../utils/dbHelpers");
 const sendEmail = require("../utils/sendEmail");
+const { loginAPI } = require("../API/loginAPI");
+const { sendTxtMsg } = require("../API/sendTxtMsg");
 
 const router = express.Router();
 
@@ -20,7 +22,7 @@ const sendEmailAndUpdateAccordingly = async (
   const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
 
   for (let user of userData) {
-    let email, name, invoice, scheduled_req, _id, Iteration, EndDay;
+    let email, phoneNo, name, invoice, scheduled_req, _id, Iteration, EndDay;
 
     // Extract dynamic fields
     if (user.vendor_email) {
@@ -28,6 +30,7 @@ const sendEmailAndUpdateAccordingly = async (
         vendor_email: email,
         vendor_name: name,
         vendor_invoice: invoice,
+        vendor_phoneNo: phoneNo,
         scheduled_req,
         _id,
         Iteration,
@@ -39,6 +42,7 @@ const sendEmailAndUpdateAccordingly = async (
         cust_email: email,
         cust_name: name,
         cust_invoice: invoice,
+        cust_phoneNo: phoneNo,
         scheduled_req,
         _id,
         Iteration,
@@ -50,6 +54,7 @@ const sendEmailAndUpdateAccordingly = async (
         comp_email: email,
         comp_name: name,
         comp_invoice: invoice,
+        comp_phoneNo: phoneNo,
         scheduled_req,
         _id,
         Iteration,
@@ -83,9 +88,22 @@ const sendEmailAndUpdateAccordingly = async (
     }
 
     try {
-      // Send the email first
-      await sendEmail(email, name, userType, invoice, user, transporter, Model);
-      console.log(`✅ Email sent to ${email}`);
+      // Send the message first
+      // await sendEmail(email, name, userType, invoice, user, transporter, Model);
+      const loginRes = await loginAPI(); // returns the object you just showed
+      console.log("loginRes's id :", loginRes.iid);
+      if (!loginRes || !loginRes.token || !loginRes.iid) {
+        throw new Error("Failed to get auth token or instance ID");
+      }
+
+      const { token, iid ,apikey } = loginRes;
+
+      // Step 2: Send WhatsApp message
+      const msgResponse = await sendTxtMsg(iid, phoneNo, apikey,token);
+      if (!msgResponse) throw new Error("Failed to send WhatsApp message");
+
+      console.log(`WhatsApp message sent to ${phoneNo}`);
+      // console.log(` Email sent to ${email}`);
 
       // Only then update the DB
       const numericIteration = parseInt(Iteration, 10); // safely parses strings like "0", "1", or even "01"
@@ -117,7 +135,7 @@ const sendEmailAndUpdateAccordingly = async (
         console.log(`Marked as sent for one-time or never ending `);
       }
     } catch (err) {
-      console.error(`❌ Failed to send email to ${email}:`, err);
+      console.error(`Failed to send message to  ${phoneNo}:`, err);
       // Keep it pending for retry
       await Model.updateOne({ _id }, { $set: { scheduled_req: "pending" } });
     }
@@ -178,9 +196,8 @@ const configureMonthlySchedule = (scheduleTime, scheduleDay) => {
   }
 
   const cronTime = `${minute} ${hour} ${dayOfMonth} * *`;
-  const currDate = `monthly-${dayOfMonth}-${
-    new Date().toISOString().split("T")[0]
-  }`;
+  const currDate = `monthly-${dayOfMonth}-${new Date().toISOString().split("T")[0]
+    }`;
   return { status: true, cronTime, currDate };
 };
 
@@ -193,6 +210,8 @@ router.post("/schedule-email", async (req, res) => {
     scheduleDay,
     scheduleType,
   } = req.body;
+
+  // loginAPI();
 
   if (!scheduleTime) {
     return res.status(400).json({ message: "scheduleTime is required" });
@@ -252,9 +271,8 @@ router.post("/schedule-email", async (req, res) => {
       return res.status(400).json({ message: "Invalid datetime format" });
     }
 
-    cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${
-      scheduleDate.getMonth() + 1
-    } *`;
+    cronTime = `${scheduleDate.getMinutes()} ${scheduleDate.getHours()} ${scheduleDate.getDate()} ${scheduleDate.getMonth() + 1
+      } *`;
     timeToStore = scheduleDate;
     currDate = scheduleDate.toISOString().split("T")[0];
   }
