@@ -14,7 +14,7 @@ const vendorRoutes = require("./routes/vendorRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const compRoutes = require("./routes/compRoutes");
-const sendImmediately = require("./utils/sendImmediately"); 
+const sendImmediately = require("./utils/sendImmediately");
 const handleScheduledSend = require("./utils/cronSchedule");
 
 
@@ -245,9 +245,9 @@ const rescheduleForCollection = async (
       )
         continue;
       cron.schedule(cronTime, async () => {
-         await handleScheduledSend({ freshEntry, roleLabel, CollectionModel });
+        await handleScheduledSend({ freshEntry, roleLabel, CollectionModel });
       });
-    } 
+    }
     else {
       const scheduleDate = new Date(scheduledTime);
 
@@ -292,7 +292,7 @@ const rescheduleForCollection = async (
             await CollectionModel.updateOne(
               { _id: entry._id },
               { $set: { scheduled_req: "sent" } }
-            ); 
+            );
           } catch (err) {
             console.error(
               `(${roleLabel}) Failed to send scheduled message to ${phoneNo}:`,
@@ -300,9 +300,9 @@ const rescheduleForCollection = async (
             );
           }
         }, delay);
-      } 
-    } 
-  } 
+      }
+    }
+  }
 };
 
 app.listen(PORT, (err) => {
