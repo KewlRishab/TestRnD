@@ -1,14 +1,10 @@
 const axios = require('axios');
-
-const sendTxtMsg = async (iid, to, apikey, authToken) => {
+                            
+const sendTxtMsg = async (payload,authToken,apikey) => {
 
     try {
         const response = await axios.post(
-            'https://swift-send.click/api/v1.0/sendmessage', {
-            iid: iid,
-            to: to,
-            templateId: "541290625248929"
-        },
+            'https://swift-send.click/api/v1.0/sendmessage',payload,
             {
                 headers: {
                     Authorization: `Bearer ${authToken}`,

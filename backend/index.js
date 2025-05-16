@@ -5,7 +5,6 @@ const cron = require("node-cron");
 const app = express();
 
 //Internal Dependencies:->
-const transporter = require("./config/transporter");
 const PORT = 8000;
 const connectDB = require("./db");
 const VendorData = require("./models/VendorData");
@@ -13,13 +12,11 @@ const CustData = require("./models/CustomerData");
 const CompData = require("./models/CompanyData");
 const vendorRoutes = require("./routes/vendorRoutes");
 const customerRoutes = require("./routes/customerRoutes");
-const emailRoutes = require("./routes/emailRoutes");
+const messageRoutes = require("./routes/messageRoutes");
 const compRoutes = require("./routes/compRoutes");
-const sendEmail = require("./utils/sendEmail");
-const btnClick = require("./routes/btnClick")
-const sendImmediately = require("./utils/sendImmediately");
+const sendImmediately = require("./utils/sendImmediately"); 
 const handleScheduledSend = require("./utils/cronSchedule");
-const { loginAPI } = require("./API/loginAPI");
+
 
 app.use(express.json());
 
@@ -30,7 +27,7 @@ app.use(
 );
 
 connectDB().then(async () => {
-  await rescheduleEmailsOnStartup();  // Await this to ensure it's done before server is considered ready
+  await rescheduleMessagesOnStartup();  // Await this to ensure it's done before server is considered ready
   // loginAPI();
 });
 
@@ -47,13 +44,10 @@ app.use("/api", customerRoutes);
 //API to get all Company Data
 app.use("/api", compRoutes);
 
-// API to schedule and send email to all vendors at a specific time
-app.use("/api", emailRoutes);
+// API to schedule and send whatsApp message to all vendors at a specific time
+app.use("/api", messageRoutes);
 
-//API to Test the WhatsApp message send
-// app.use("/api", btnClick);
-
-async function rescheduleEmailsOnStartup() {
+async function rescheduleMessagesOnStartup() {
   try {
     await rescheduleForCollection(VendorData, "Vendor");
     await rescheduleForCollection(CustData, "Customer");
@@ -77,15 +71,12 @@ const rescheduleForCollection = async (
       scheduledTime,
       scheduled_req,
       vendor_name,
-      // vendor_email,
       vendor_invoice,
       vendor_phoneNo,
       cust_name,
-      // cust_email,
       cust_invoice,
       cust_phoneNo,
       comp_name,
-      // comp_email,
       comp_invoice,
       comp_phoneNo,
       EndDay,
@@ -101,7 +92,6 @@ const rescheduleForCollection = async (
     }
 
     const name = vendor_name || cust_name || comp_name;
-    // const email = vendor_email || cust_email || comp_email;
     const invoice = vendor_invoice || cust_invoice || comp_invoice;
     const phoneNo = vendor_phoneNo || cust_phoneNo || comp_phoneNo;
 

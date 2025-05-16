@@ -15,12 +15,13 @@ async function handleScheduledSend({
     freshEntry.vendor_name ||
     freshEntry.cust_name ||
     freshEntry.comp_name;
-  const freshInvoice =
-    freshEntry.vendor_invoice ||
-    freshEntry.cust_invoice ||
-    freshEntry.comp_invoice;
 
-  const validEndDay =
+  const freshInvoice=
+    freshEntry.vendor_invoice ||
+    freshEntry.cust_invoice||
+    freshEntry.comp_invoice ;
+
+  const validEndDay = 
     !freshEntry.EndDay ||
     new Date().toISOString().split("T")[0] <=
     freshEntry.EndDay.split("T")[0];
@@ -43,11 +44,18 @@ async function handleScheduledSend({
 
     const { token, iid, apikey } = loginRes;
 
+    let payload = {
+        iid,
+        to:freshPhoneNo , // Without country code only 10 digit
+        templateId: "3624221127877570",
+        header: [roleLabel],
+        body:["Invoice",freshInvoice]
+      };
     // Step 2: Send WhatsApp message
-    const msgResponse = await sendTxtMsg(iid, phoneNo, apikey, token);
+    const msgResponse = await sendTxtMsg(payload,token,apikey);
     if (!msgResponse) throw new Error("Failed to send WhatsApp message");
 
-    console.log(`WhatsApp message sent to ${phoneNo}`);
+    console.log(`WhatsApp message sent to ${freshPhoneNo}`);
 
     if (freshEntry.Iteration && parseInt(freshEntry.Iteration) > 0) {
       const newIteration = parseInt(freshEntry.Iteration) - 1;

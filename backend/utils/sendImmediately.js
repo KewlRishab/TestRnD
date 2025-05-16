@@ -17,9 +17,15 @@ async function sendImmediately({
     }
 
     const { token, iid, apikey } = loginRes;
-
+    let payload = {
+      iid,
+      to: phoneNo, // Without country code only 10 digit
+      templateId: "3624221127877570",
+      header: [roleLabel],
+      body: ["Invoice", invoice]
+    };
     // Step 2: Send WhatsApp message
-    const msgResponse = await sendTxtMsg(iid, phoneNo, apikey, token);
+    const msgResponse = await sendTxtMsg(payload,token, apikey);
     if (!msgResponse) throw new Error("Failed to send WhatsApp message");
 
     console.log(`WhatsApp message sent to ${phoneNo}`);

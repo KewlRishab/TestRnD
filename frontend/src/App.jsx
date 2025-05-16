@@ -113,16 +113,16 @@ function App() {
 
       // Send the payload
       const response = await axios.post(
-        "http://localhost:8000/api/schedule-email",
+        "http://localhost:8000/api/schedule-message",
         payload
       );
 
-      alert("Email scheduled successfully! ✅");
+      alert("Message scheduled successfully! ✅");
       console.log(response.data);
       setRefreshTrigger((prev) => !prev);
     } catch (error) {
-      console.error("Error scheduling email:", error);
-      alert("Failed to schedule email.");
+      console.error("Error scheduling message:", error);
+      alert("Failed to schedule message.");
     }
   };
 
@@ -134,7 +134,7 @@ function App() {
         <CompTable refreshTrigger={refreshTrigger} />
       </div>
       <div className="buttonHeading">
-        Please select the date and time below to schedule An Email!
+        Please select the date and time below to schedule A WhatsApp Message!
       </div>
       {/* <div className="inpCont">
         <div className="timeInp">

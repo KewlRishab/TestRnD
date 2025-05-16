@@ -1,11 +1,9 @@
 const express = require("express");
 const cron = require("node-cron");
-const transporter = require("../config/transporter");
 const VendorData = require("../models/VendorData");
 const CustData = require("../models/CustomerData");
 const CompData = require("../models/CompanyData");
 const { updateUserTypeData } = require("../utils/dbHelpers");
-const sendEmail = require("../utils/sendEmail");
 const { loginAPI } = require("../API/loginAPI");
 const { sendTxtMsg } = require("../API/sendTxtMsg");
 
@@ -13,9 +11,8 @@ const router = express.Router();
 
 const cronJobs = {};
 
-const sendEmailAndUpdateAccordingly = async (
+const sendMessageAndUpdateAccordingly = async (
   userData,
-  transporter,
   userType,
   Model
 ) => {
@@ -27,7 +24,6 @@ const sendEmailAndUpdateAccordingly = async (
     // Extract dynamic fields
     if (user.vendor_email) {
       ({
-        vendor_email: email,
         vendor_name: name,
         vendor_invoice: invoice,
         vendor_phoneNo: phoneNo,
@@ -39,7 +35,6 @@ const sendEmailAndUpdateAccordingly = async (
       } = user);
     } else if (user.cust_email) {
       ({
-        cust_email: email,
         cust_name: name,
         cust_invoice: invoice,
         cust_phoneNo: phoneNo,
@@ -51,7 +46,6 @@ const sendEmailAndUpdateAccordingly = async (
       } = user);
     } else if (user.comp_email) {
       ({
-        comp_email: email,
         comp_name: name,
         comp_invoice: invoice,
         comp_phoneNo: phoneNo,
@@ -68,13 +62,13 @@ const sendEmailAndUpdateAccordingly = async (
 
     // Skip already processed
     if (scheduled_req !== "pending") {
-      console.log(`Skipping ${email} — Already processed & not pending`);
+      console.log(`Skipping ${name} — Already processed & not pending`);
       continue;
     }
 
     // Skip if Iteration is 0 and no EndDay
     if (Iteration === "0" && !EndDay) {
-      console.log(`Skipping ${email} — Iteration is 0 and no EndDay`);
+      console.log(`Skipping ${name} — Iteration is 0 and no EndDay`);
       continue;
     }
 
@@ -82,28 +76,35 @@ const sendEmailAndUpdateAccordingly = async (
     if (!Iteration && EndDay) {
       const endDateOnly = EndDay.split("T")[0];
       if (today > endDateOnly) {
-        console.log(`Skipping ${email} — EndDay ${endDateOnly} already passed`);
+        console.log(`Skipping ${name} — EndDay ${endDateOnly} already passed`);
         continue;
       }
     }
 
     try {
       // Send the message first
-      // await sendEmail(email, name, userType, invoice, user, transporter, Model);
       const loginRes = await loginAPI(); // returns the object you just showed
       console.log("loginRes's id :", loginRes.iid);
       if (!loginRes || !loginRes.token || !loginRes.iid) {
         throw new Error("Failed to get auth token or instance ID");
       }
 
-      const { token, iid ,apikey } = loginRes;
+      const { token, iid, apikey } = loginRes;
+
+      let payload = {
+        iid,
+        to:phoneNo , // Without country code only 10 digit
+        templateId: "3624221127877570",
+        header: [userType],
+        body:["Invoice",invoice]
+      };
 
       // Step 2: Send WhatsApp message
-      const msgResponse = await sendTxtMsg(iid, phoneNo, apikey,token);
+      const msgResponse = await sendTxtMsg(payload,token,apikey);
+
       if (!msgResponse) throw new Error("Failed to send WhatsApp message");
 
       console.log(`WhatsApp message sent to ${phoneNo}`);
-      // console.log(` Email sent to ${email}`);
 
       // Only then update the DB
       const numericIteration = parseInt(Iteration, 10); // safely parses strings like "0", "1", or even "01"
@@ -118,7 +119,7 @@ const sendEmailAndUpdateAccordingly = async (
             },
           }
         );
-        console.log(`Iteration decremented for ${email}`);
+        console.log(`Iteration decremented for ${phoneNo}`);
       } else if (EndDay) {
         await Model.updateOne(
           { _id },
@@ -201,7 +202,7 @@ const configureMonthlySchedule = (scheduleTime, scheduleDay) => {
   return { status: true, cronTime, currDate };
 };
 
-router.post("/schedule-email", async (req, res) => {
+router.post("/schedule-message", async (req, res) => {
   const {
     EndDay,
     Iteration,
@@ -298,43 +299,40 @@ router.post("/schedule-email", async (req, res) => {
     // Schedule a new job
     cronJobs[currDate] = cron.schedule(cronTime, async () => {
       try {
-        // Vendor emails
+        // Vendor Messages
         const vendorData = await VendorData.find();
-        await sendEmailAndUpdateAccordingly(
+        await sendMessageAndUpdateAccordingly(
           vendorData,
-          transporter,
           "Vendor",
           VendorData
         );
 
-        // Customer emails
+        // Customer Messages
         const custData = await CustData.find();
-        await sendEmailAndUpdateAccordingly(
+        await sendMessageAndUpdateAccordingly(
           custData,
-          transporter,
           "Customer",
           CustData
         );
 
-        // Company emails
+        // Company Messages
         const compData = await CompData.find();
-        await sendEmailAndUpdateAccordingly(
+        await sendMessageAndUpdateAccordingly(
           compData,
-          transporter,
           "Company",
           CompData
         );
       } catch (err) {
         console.error("Error sending invoices:", err);
       }
-    });
+    }); 
 
     res.status(200).json({
-      message: `Emails scheduled to be sent at ${scheduleTime}`,
+      message: `Messages scheduled to be sent at ${scheduleTime}`,
     });
   } catch (err) {
-    console.error("Error scheduling email:", err);
-    res.status(500).json({ message: "Error scheduling email" });
+    console.error("Error scheduling message :", err);
+    res.status(500).json({ message: "Error scheduling message" });
   }
 });
 
